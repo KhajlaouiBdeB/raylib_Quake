@@ -176,6 +176,9 @@ running under AddressSanitizer and UndefinedBehaviorSanitizer.
   (UBSan).
 - **Link errors with `-fno-common`** (GCC 10+ default): globals defined in
   headers or in more than one file (`d_local.h`, `d_edge.c`, `vid_null.c`).
+- **Long paths**: `MAX_OSPATH` was 128, and a longer `-basedir` overflowed
+  a buffer at startup (glibc fortify abort, found by the QUAK-3 harness).
+  It is now 1024, and the path copies are bounded.
 - **Missing prototypes and headers** (errors from GCC 14): `SV_RecursiveHullCheck`,
   `inet_addr`.
 - **Buffer overflows**: path building now uses `Q_snprintf`; the server
@@ -209,3 +212,9 @@ running under AddressSanitizer and UndefinedBehaviorSanitizer.
   `impulse 9`, movement, `save`, `load`, then `timedemo demo1`. No reports.
 - Dedicated server: `map e1m1`, `status`, `edictcount`, `changelevel e1m2`,
   `map start`, `quit` from stdin.
+- QUAK-3 harness (`docs/TESTING.md`) with `--headless`: `launch`,
+  `timedemo` and `soak` pass. Its `demo` mode passes `+startdemos` on the
+  command line, but `pak0.pak`'s own `quake.rc` (which takes priority over a
+  loose `quake.rc` in the same directory) runs `startdemos` again while
+  demo1 is playing, and the stock engine then stops the loop after demo1.
+  Without `+startdemos`, the attract loop plays demo1, demo2 and demo3.
