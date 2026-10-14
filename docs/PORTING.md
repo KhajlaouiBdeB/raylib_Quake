@@ -11,29 +11,43 @@ drivers, and keep raylib out of the engine code.
 | Stage | What | State |
 |-------|------|-------|
 | 1 | CMake build, 64-bit and modern-compiler fixes, null drivers, this survey | done |
-| 2 | raylib drivers for video, input, sound and system | planned |
+| 2 | raylib drivers for video, input and system (QUAK-5) | done |
+| 2 | raylib sound driver (QUAK-6) | planned |
 | later | GLQuake (`gl_*`), QuakeWorld (`QW/`), other platforms | planned |
 
-## Building (stage 1)
+## Building
 
-Linux x86_64, GCC or Clang, CMake 3.16 or newer:
+Linux x86_64, GCC or Clang, CMake 3.16 or newer. raylib's GLFW needs the X11
+development headers (on Ubuntu: `libx11-dev libxrandr-dev libxinerama-dev
+libxcursor-dev libxi-dev libgl1-mesa-dev`).
 
 ```sh
 cmake -S . -B build -G Ninja        # or leave out -G Ninja to use make
 cmake --build build
 ```
 
-This gives `build/quake`. It uses the null video, sound, input and CD
-drivers, so nothing is shown on screen, but the whole engine runs, including
-the software renderer, which draws into a 320x200 memory buffer.
+This gives two programs:
+
+- `build/quake`: the game in a raylib window (`QUAKE_RAYLIB`, on by default).
+- `build/quake-null`: the null video, sound, input and CD drivers and no
+  raylib at all. Nothing is shown on screen, but the whole engine runs,
+  including the software renderer, which draws into a 320x200 memory buffer.
+  This is the headless and dedicated server build.
+
+`-DQUAKE_RAYLIB=OFF` builds only the null drivers, as `build/quake`, and
+needs neither raylib nor X11.
 
 Game data is not in the repository. Put the shareware `pak0.pak` (or your own
 registered data) in `<basedir>/id1/pak0.pak` and run:
 
 ```sh
+./build/quake -basedir <basedir>                          # play
 ./build/quake -basedir <basedir> +timedemo demo1          # software renderer benchmark
 ./build/quake -basedir <basedir> -dedicated 4 +map e1m1   # server, reads commands from stdin
 ```
+
+Either program runs a dedicated server; `quake` opens no window then, so it
+also works without a display.
 
 stdout is block buffered when redirected; use `stdbuf -oL` (or a pty) to see
 output from a run that is killed by `timeout`. `screenshot` writes a PCX of the
@@ -85,10 +99,16 @@ efforts":
   because it has a real clock and reads server commands from stdin.
 - `net_none.c` has no network drivers at all; stage 1 keeps loopback and UDP.
 
-### Stage 1 driver set
+### Driver sets
 
-`sys_linux.c`, `vid_null.c`, `in_null.c`, `snd_null.c`, `cd_null.c`,
-`net_udp.c` + `net_bsd.c` (see `QUAKE_DRIVER_SOURCES` in `CMakeLists.txt`).
+- `quake` (raylib): `sys_raylib.c`, `vid_raylib.c`, `in_raylib.c`,
+  `bridge_raylib.c`, `snd_null.c`, `cd_null.c`, `net_udp.c` + `net_bsd.c`
+  (`QUAKE_RAYLIB_DRIVER_SOURCES`). Sound stays null until QUAK-6.
+- `quake-null`: `sys_linux.c`, `vid_null.c`, `in_null.c`, `snd_null.c`,
+  `cd_null.c`, `net_udp.c` + `net_bsd.c` (`QUAKE_NULL_DRIVER_SOURCES`).
+
+The engine itself is compiled once (`quake_core`, an object library) and
+linked into both.
 
 ## Decisions
 
@@ -122,28 +142,122 @@ and is no use on x86_64 or arm.
   errors on older compilers too, so a GCC 13 build catches what GCC 14+ would
   reject.
 
-### raylib dependency (stage 2)
+### raylib dependency
 
-As in raylib_DOOM: use an installed raylib 5.x if `find_package(raylib)` finds
-one, otherwise download raylib 5.5 with CMake `FetchContent` and link it
-statically. `-DCMAKE_DISABLE_FIND_PACKAGE_raylib=ON` forces the download (this
-was needed on WSL, where CMake found the Windows MSYS2 raylib).
-`QUAKE_RAYLIB` is the switch; it exists now but is `OFF` and stops the
-configure step with an error if turned on.
+raylib **6.0** (released 2026-04-23). CMake uses an installed raylib 6.x if
+`find_package(raylib 6.0)` finds one, otherwise it downloads the 6.0 tag with
+`FetchContent` and links it statically. `-DCMAKE_DISABLE_FIND_PACKAGE_raylib=ON`
+forces the download (this was needed on WSL in raylib_DOOM, where CMake found
+the Windows MSYS2 raylib); `-DFETCHCONTENT_SOURCE_DIR_RAYLIB=<dir>` builds a
+raylib source tree that is already on disk. It uses raylib's default desktop
+backend (GLFW), not the experimental native Win32 or Emscripten ones.
 
-### Planned raylib drivers
+The downloaded raylib is built with `SUPPORT_SCREEN_CAPTURE=0`: raylib
+otherwise saves a PNG of the window whenever F12 is pressed, and F12 is a
+Quake key. An installed raylib may still do that.
+
+The two raylib 5.5 problems from raylib_DOOM, checked again on 6.0:
+
+- **No display**: with no `DISPLAY`, GLFW fails to initialise and
+  `InitWindow` returns without a window; `quake` then stops with
+  `Error: Couldn't open a window (is there a display?)` and exit status 1. It
+  doesn't crash. A dedicated server never opens a window.
+- **X11 only**: raylib 6.0's CMake still builds its GLFW with X11 only
+  (`GLFW_BUILD_WAYLAND` is off by default), so on a Wayland desktop the game
+  runs through XWayland. `-DGLFW_BUILD_WAYLAND=ON` builds X11 and Wayland
+  support together (it needs `libwayland-dev`, `libxkbcommon-dev` and
+  `wayland-protocols`); that build compiles and links but hasn't been run on a
+  Wayland desktop yet.
+
+### raylib drivers
 
 raylib.h cannot be included next to Quake headers (`bool`, `KEY_*`,
-`Vector3`, `Color` ...), so every raylib call goes in `*_raylib.c` files. These
-include only raylib.h and a small plain-C bridge header, never `quakedef.h`.
+`Vector3`, `Color` ...). `bridge_raylib.c` is the only file that includes
+raylib.h, and it includes no Quake header. The engine-side drivers include
+`quakedef.h` and the plain-C `bridge_raylib.h`, never raylib.h.
 
-| File | Replaces | Plan |
-|------|----------|------|
-| `vid_raylib.c` | `vid_null.c` | Window, 8-bit `vid.buffer` + palette to RGBA texture, scaled drawing, resolution and fullscreen modes, palette shifts (`VID_ShiftPalette`) |
-| `in_raylib.c` | `in_null.c` | Map raylib keys and mouse buttons to Quake `K_*` in `Sys_SendKeyEvents`; mouse look in `IN_Move`. Watch for `EndDrawing()` polling input (DOOM gotcha) |
-| `snd_raylib.c` | `snd_null.c` | Build `snd_dma.c`, `snd_mem.c` and `snd_mix.c`, and implement `SNDDMA_*` on a raylib `AudioStream` that reads the DMA ring buffer |
-| `sys_raylib.c` | `sys_linux.c` | Main loop, `Sys_FloatTime` and errors, for platforms without POSIX; on Linux `sys_linux.c` may stay |
+| File | Replaces | What it does |
+|------|----------|--------------|
+| `bridge_raylib.c` / `.h` | | Window, texture upload and scaled drawing, fullscreen, vsync; key, mouse and close-button polling. Reports keys as ASCII or its own `RLK_*` codes |
+| `vid_raylib.c` | `vid_null.c` | Allocates the 8-bit frame buffer, z-buffer and surface cache; `VID_SetPalette`/`VID_ShiftPalette` fill a 256-entry RGBA table; `VID_Update` converts the frame through it and presents it |
+| `in_raylib.c` | `in_null.c` | `Sys_SendKeyEvents` maps `RLK_*` to `K_*` and calls `Key_Event`; mouse look in `IN_Move`; decides when the pointer is captured |
+| `sys_raylib.c` | `sys_linux.c` | Main loop, monotonic `Sys_FloatTime`, stdio file I/O, errors and quit. The POSIX parts (clock, `mkdir`, server commands from stdin) are marked |
+| `snd_raylib.c` | `snd_null.c` | QUAK-6: build `snd_dma.c`, `snd_mem.c` and `snd_mix.c`, and implement `SNDDMA_*` on a raylib `AudioStream` that reads the DMA ring buffer |
 | `cd_null.c` | (unchanged) | There is no CD. Music from OGG files in `id1/music/` could be added later |
+
+#### Video
+
+- `-width W -height H` set the size the renderer draws at (default 640x480,
+  from 320x200 up to Quake's `MAXWIDTH` x `MAXHEIGHT`, 1280x1024).
+  `-scale N` sets the first window size in multiples of that (default 2 up to
+  400 wide, else 1), or `-winwidth`/`-winheight` set it directly.
+- The window can be resized. The frame is scaled to fit with its aspect kept
+  and black bars. `vid_integerscale 1` scales by whole multiples only;
+  `vid_filter 1` uses bilinear filtering instead of nearest (both saved).
+- Alt+Enter, `-fullscreen` or `vid_fullscreen 1` switch to borderless
+  fullscreen on the current monitor (raylib's `ToggleBorderlessWindowed`; no
+  video mode change). `vid_fullscreen` is not saved in `config.cfg`.
+- Palette: the renderer still draws palette indices. A 256-entry table turns
+  them into RGBA on the CPU before upload (640x480 is 300K lookups a frame).
+  Damage, pickup and underwater flashes and the `gamma` cvar reach the
+  driver as a new palette through `VID_ShiftPalette`/`VID_SetPalette`, as
+  before. A palette shader could replace the table later.
+- The whole frame is uploaded every `VID_Update`; the dirty rectangles are
+  ignored. The "accessing disk" icon (`D_BeginDirectRect`) isn't drawn.
+
+#### Frame rate and vsync
+
+Quake itself runs at most 72 frames a second: `Host_FilterTime` returns
+without running a frame if less than 1/72 s has passed (except in a
+timedemo). This build has no `host_maxfps` cvar; that came with later
+engines.
+
+- `vid_vsync 1` (default, saved): `EndDrawing` waits for the display. At 60
+  Hz the game runs at 60 frames a second; at 72 Hz or more it runs at 72, and
+  frames of the display between Quake frames show the last one again (some
+  judder at refresh rates that aren't a multiple of 72).
+- `vid_vsync 0`: the game runs at 72 frames a second whatever the display.
+- A timedemo always turns vsync off while it runs, so it measures the
+  renderer, not the display. The frame counts (969/985/1090) don't depend on
+  it.
+- Between Quake frames the main loop sleeps 1 ms instead of spinning.
+
+#### Input
+
+- Keys: the bridge reports letters, digits and punctuation as lowercase ASCII
+  (raylib's key codes are US layout positions), and everything else as
+  `RLK_*` codes, which `in_raylib.c` maps to `K_*`. Left and right
+  Shift/Ctrl/Alt, and the keypad keys with a main keyboard equivalent, are
+  merged into one key, which goes up only when the last of them is
+  released. The console's shifted characters come from keys.c's own table,
+  as with every Quake driver, so the console types US layout characters.
+- `EndDrawing` polls input and each poll empties raylib's pressed-key queue
+  and auto-repeat flags (DOOM gotcha). `Sys_SendKeyEvents` reads what
+  `EndDrawing`'s poll collected, polls again and reads again. A key pressed
+  and released between polls gets a down and an up; a key pressed again
+  before the poll that saw its release (a fast "pp") gets an up between its
+  two downs.
+- Auto-repeat: every OS repeat becomes another down event, as X11 sent them.
+  Quake's `Key_Event` ignores repeats of every key except Backspace and Pause
+  (keys.c), which is the stock 1.09 behaviour.
+- Alt+Enter toggles fullscreen and neither the Enter press nor its release
+  reaches Quake, so key events stay balanced.
+- Mouse: while playing (`key_dest` is the game, connected, not a demo, and
+  `_windowed_mouse 1`), the pointer is captured with raylib's
+  `DisableCursor`, which also turns on GLFW raw (unaccelerated) motion where
+  the platform has it. The console, menus and demo loop leave the pointer
+  free. Motion is in pixels, the units the X11 driver used, so `sensitivity`
+  feels the same; `m_filter` works as before. Buttons 1-3 and the wheel
+  come in as `K_MOUSE1`-`K_MOUSE3` and `K_MWHEELUP`/`K_MWHEELDOWN` while
+  captured. `-nomouse` turns the mouse off.
+- Focus: the pointer is captured only while the window has focus; it is
+  let go on Alt+Tab and captured again when the window gets focus back.
+  GLFW releases held keys when focus goes, so none stay stuck.
+- The window's close button quits at once (no "are you sure" menu) and
+  saves `config.cfg`. raylib's Esc-to-close is turned off; Esc is Quake's
+  menu key.
+- Compile with `-DIN_RAYLIB_KEYLOG` to print every key event, the mouse
+  motion and pointer capture changes to stdout.
 
 ## 64-bit and modern-compiler fixes
 
@@ -194,8 +308,9 @@ running under AddressSanitizer and UndefinedBehaviorSanitizer.
 - About 30 `(long)` pointer casts in the renderer are fine on LP64 (Linux,
   macOS) but would truncate on 64-bit Windows (LLP64). Switch them to
   `intptr_t` when the Windows port starts.
-- The heap is still 8 MB (`sys_linux.c`, `-mem` to change). The shareware maps
-  fit, but 64-bit pointers make edicts and models bigger, so big custom maps
+- The heap is 16 MB in `quake` (`sys_raylib.c`) and still 8 MB in
+  `quake-null` (`sys_linux.c`); `-mem` changes it. The shareware maps fit in
+  8 MB, but 64-bit pointers make edicts and models bigger, so big custom maps
   may need more.
 - `R_RenderView`'s stack sanity check fails under ASan's fake stack; run ASan
   builds with `ASAN_OPTIONS=detect_stack_use_after_return=0`.

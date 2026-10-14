@@ -1,0 +1,488 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+*/
+// bridge_raylib.c -- the only file that includes raylib.h (see bridge_raylib.h)
+
+#include <stdio.h>
+#include <string.h>
+
+#include "raylib.h"
+#include "bridge_raylib.h"
+
+static int			windowopen;
+static int			fbwidth, fbheight;
+static Texture2D	screentex;
+static int			texlinear;
+static int			quitrequested;
+
+/*
+=============================================================================
+
+WINDOW AND VIDEO
+
+=============================================================================
+*/
+
+int RL_OpenWindow (const char *title, int width, int height,
+	int winwidth, int winheight, int fullscreen, int vsync)
+{
+	Image	img;
+
+	SetTraceLogLevel (LOG_WARNING);
+
+	SetConfigFlags (FLAG_WINDOW_RESIZABLE | (vsync ? FLAG_VSYNC_HINT : 0));
+	InitWindow (winwidth, winheight, title);
+	if (!IsWindowReady ())
+		return 0;
+
+	// Esc is Quake's menu key, not a quit key.
+	SetExitKey (KEY_NULL);
+	SetWindowMinSize (320, 200);
+
+	fbwidth = width;
+	fbheight = height;
+
+	img = GenImageColor (width, height, BLACK);
+	screentex = LoadTextureFromImage (img);
+	UnloadImage (img);
+	SetTextureFilter (screentex, TEXTURE_FILTER_POINT);
+	texlinear = 0;
+
+	windowopen = 1;
+
+	if (fullscreen)
+		RL_SetFullscreen (1);
+
+	return 1;
+}
+
+void RL_CloseWindow (void)
+{
+	if (!windowopen)
+		return;
+	UnloadTexture (screentex);
+	CloseWindow ();
+	windowopen = 0;
+}
+
+int RL_WindowOpen (void)
+{
+	return windowopen;
+}
+
+void RL_Present (const unsigned *rgba, int integer, int linear)
+{
+	float		winw, winh;
+	float		scale;
+	Rectangle	src, dst;
+
+	if (!windowopen)
+		return;
+
+	UpdateTexture (screentex, rgba);
+
+	if (linear != texlinear)
+	{
+		SetTextureFilter (screentex,
+			linear ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
+		texlinear = linear;
+	}
+
+	// Keep the aspect ratio, centred, black bars on the long side.
+	winw = (float)GetScreenWidth ();
+	winh = (float)GetScreenHeight ();
+	scale = winw / fbwidth;
+	if (winh / fbheight < scale)
+		scale = winh / fbheight;
+	if (integer && scale >= 1.0f)
+		scale = (float)(int)scale;
+
+	src = (Rectangle) { 0, 0, (float)fbwidth, (float)fbheight };
+	dst.width = fbwidth * scale;
+	dst.height = fbheight * scale;
+	dst.x = (float)(int)((winw - dst.width) / 2);
+	dst.y = (float)(int)((winh - dst.height) / 2);
+
+	BeginDrawing ();
+	ClearBackground (BLACK);
+	DrawTexturePro (screentex, src, dst, (Vector2) { 0, 0 }, 0.0f, WHITE);
+	EndDrawing ();		// also polls input, see RL_PumpEvents
+}
+
+int RL_IsFullscreen (void)
+{
+	return windowopen && IsWindowState (FLAG_BORDERLESS_WINDOWED_MODE);
+}
+
+// Borderless fullscreen on the current monitor: no video mode change, so
+// Alt+Tab and the desktop keep working.
+void RL_SetFullscreen (int fullscreen)
+{
+	if (!windowopen || !fullscreen == !RL_IsFullscreen ())
+		return;
+	ToggleBorderlessWindowed ();
+}
+
+void RL_SetVsync (int vsync)
+{
+	if (!windowopen || !vsync == !IsWindowState (FLAG_VSYNC_HINT))
+		return;
+	if (vsync)
+		SetWindowState (FLAG_VSYNC_HINT);
+	else
+		ClearWindowState (FLAG_VSYNC_HINT);
+}
+
+int RL_QuitRequested (void)
+{
+	return quitrequested;
+}
+
+/*
+=============================================================================
+
+INPUT
+
+=============================================================================
+*/
+
+#define MAXEVENTS	256
+
+static rl_keyevent_t	events[MAXEVENTS];
+static int				eventhead, eventtail;
+
+// raylib keys we track, with the code reported for each. Several raylib keys
+// can give one code (left and right Shift, the keypad arrows).
+typedef struct
+{
+	int		rlkey;
+	int		code;
+} keymap_t;
+
+static const keymap_t	keymap[] =
+{
+	{ KEY_TAB, RLK_TAB },
+	{ KEY_ENTER, RLK_ENTER },
+	{ KEY_KP_ENTER, RLK_ENTER },
+	{ KEY_ESCAPE, RLK_ESCAPE },
+	{ KEY_SPACE, RLK_SPACE },
+	{ KEY_BACKSPACE, RLK_BACKSPACE },
+
+	{ KEY_UP, RLK_UP },
+	{ KEY_DOWN, RLK_DOWN },
+	{ KEY_LEFT, RLK_LEFT },
+	{ KEY_RIGHT, RLK_RIGHT },
+	{ KEY_LEFT_ALT, RLK_ALT },
+	{ KEY_RIGHT_ALT, RLK_ALT },
+	{ KEY_LEFT_CONTROL, RLK_CTRL },
+	{ KEY_RIGHT_CONTROL, RLK_CTRL },
+	{ KEY_LEFT_SHIFT, RLK_SHIFT },
+	{ KEY_RIGHT_SHIFT, RLK_SHIFT },
+	{ KEY_F1, RLK_F1 }, { KEY_F2, RLK_F2 }, { KEY_F3, RLK_F3 },
+	{ KEY_F4, RLK_F4 }, { KEY_F5, RLK_F5 }, { KEY_F6, RLK_F6 },
+	{ KEY_F7, RLK_F7 }, { KEY_F8, RLK_F8 }, { KEY_F9, RLK_F9 },
+	{ KEY_F10, RLK_F10 }, { KEY_F11, RLK_F11 }, { KEY_F12, RLK_F12 },
+	{ KEY_INSERT, RLK_INS },
+	{ KEY_DELETE, RLK_DEL },
+	{ KEY_PAGE_DOWN, RLK_PGDN },
+	{ KEY_PAGE_UP, RLK_PGUP },
+	{ KEY_HOME, RLK_HOME },
+	{ KEY_END, RLK_END },
+	{ KEY_PAUSE, RLK_PAUSE },
+
+	// the keypad, as the old X11 driver mapped it
+	{ KEY_KP_8, RLK_UP },
+	{ KEY_KP_2, RLK_DOWN },
+	{ KEY_KP_4, RLK_LEFT },
+	{ KEY_KP_6, RLK_RIGHT },
+	{ KEY_KP_7, RLK_HOME },
+	{ KEY_KP_1, RLK_END },
+	{ KEY_KP_9, RLK_PGUP },
+	{ KEY_KP_3, RLK_PGDN },
+	{ KEY_KP_0, RLK_INS },
+	{ KEY_KP_DECIMAL, RLK_DEL },
+	{ KEY_KP_5, '5' },
+	{ KEY_KP_ADD, '+' },
+	{ KEY_KP_SUBTRACT, '-' },
+	{ KEY_KP_MULTIPLY, '*' },
+	{ KEY_KP_DIVIDE, '/' },
+	{ KEY_KP_EQUAL, '=' },
+};
+
+#define NUMKEYMAP	(int)(sizeof(keymap) / sizeof(keymap[0]))
+
+// Highest raylib key code (KEY_KB_MENU is 348).
+#define MAXRLKEYS	512
+
+// Last state of each raylib key, and how many raylib keys hold each code.
+static unsigned char	rlkeydown[MAXRLKEYS];
+static unsigned char	codedown[RLK_NUMCODES];
+
+// Keys whose press was kept from Quake (Enter of Alt+Enter); their release
+// is kept from it too.
+static unsigned char	swallowed[MAXRLKEYS];
+
+static int		mousewanted;
+static int		mousegrabbed;
+static Vector2	lastmouse;
+static float	mousedx, mousedy;
+static int		mousebuttons;
+static const int	rlbuttons[3] =
+	{ MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE };
+static float	wheel;
+
+static void PostEvent (int code, int down)
+{
+	int next = (eventhead + 1) % MAXEVENTS;
+
+	if (next == eventtail)
+		return;		// full, drop it
+
+	events[eventhead].key = code;
+	events[eventhead].down = down;
+	eventhead = next;
+}
+
+// The code for a raylib key, 0 for keys Quake has no use for.
+static int KeyCode (int rlkey)
+{
+	int		i;
+
+	// Letters, digits, space and punctuation are ASCII in raylib.
+	if (rlkey >= KEY_A && rlkey <= KEY_Z)
+		return rlkey - KEY_A + 'a';
+	if (rlkey > KEY_SPACE && rlkey <= KEY_GRAVE)
+		return rlkey;
+
+	for (i = 0; i < NUMKEYMAP; i++)
+		if (keymap[i].rlkey == rlkey)
+			return keymap[i].code;
+
+	return 0;
+}
+
+static void SetKeyState (int rlkey, int down)
+{
+	int		code;
+
+	if (rlkey <= 0 || rlkey >= MAXRLKEYS || rlkeydown[rlkey] == down)
+		return;
+	rlkeydown[rlkey] = down;
+
+	if (swallowed[rlkey])
+	{
+		if (!down)
+			swallowed[rlkey] = 0;
+		return;
+	}
+
+	code = KeyCode (rlkey);
+	if (!code)
+		return;
+
+	// Report the code going down with the first key and up with the last.
+	if (down)
+	{
+		if (codedown[code]++ == 0)
+			PostEvent (code, 1);
+	}
+	else if (codedown[code] > 0)
+	{
+		if (--codedown[code] == 0)
+			PostEvent (code, 0);
+	}
+}
+
+// Reads what the last poll collected. Called before and after our own poll,
+// because EndDrawing polls too, and each poll resets the pressed-key queue,
+// the auto-repeat flags and the wheel.
+static void ReadPoll (void)
+{
+	int		key;
+	int		i;
+	int		code;
+
+	// A key pressed and released between two polls is in the pressed
+	// queue but never in IsKeyDown: report a down and an up. The queue
+	// holds presses only, in order.
+	while ((key = GetKeyPressed ()) != 0)
+	{
+		if (key <= 0 || key >= MAXRLKEYS)
+			continue;
+
+		if ((key == KEY_ENTER || key == KEY_KP_ENTER)
+			&& (IsKeyDown (KEY_LEFT_ALT) || IsKeyDown (KEY_RIGHT_ALT)))
+		{
+			// Alt+Enter toggles fullscreen and is not passed on.
+			RL_SetFullscreen (!RL_IsFullscreen ());
+			if (!rlkeydown[key])
+			{
+				rlkeydown[key] = 1;
+				swallowed[key] = 1;
+			}
+			continue;
+		}
+
+		// Already down: it was let go and pressed again since (a
+		// fast "pp"), so give Quake that release too.
+		if (rlkeydown[key])
+			SetKeyState (key, 0);
+		SetKeyState (key, 1);
+		if (!IsKeyDown (key))
+			SetKeyState (key, 0);
+	}
+
+	// Releases, and presses the queue missed (it holds 16).
+	for (key = 1; key < MAXRLKEYS; key++)
+		SetKeyState (key, IsKeyDown (key));
+
+	// Auto-repeat: Quake wants another down event, as X11 sent. GLFW
+	// also reports a quick release and press of the same key (under
+	// 20 ms apart) as a repeat; if the key is up again by now, that
+	// press gets its own down and up.
+	for (key = 1; key < MAXRLKEYS; key++)
+	{
+		if (swallowed[key] || !IsKeyPressedRepeat (key))
+			continue;
+		code = KeyCode (key);
+		if (!code)
+			continue;
+		if (rlkeydown[key])
+			PostEvent (code, 1);
+		else if (!codedown[code])
+		{
+			PostEvent (code, 1);
+			PostEvent (code, 0);
+		}
+	}
+
+	if (mousegrabbed)
+	{
+		Vector2		pos;
+
+		// GetMouseDelta only covers the last poll; with the cursor
+		// disabled the position is unbounded, so track it ourselves.
+		pos = GetMousePosition ();
+		mousedx += pos.x - lastmouse.x;
+		mousedy += pos.y - lastmouse.y;
+		lastmouse = pos;
+
+		wheel += GetMouseWheelMove ();
+
+		for (i = 0; i < 3; i++)
+		{
+			int		bit = 1 << i;
+			int		down = IsMouseButtonDown (rlbuttons[i]);
+
+			if (down != !!(mousebuttons & bit))
+			{
+				mousebuttons ^= bit;
+				PostEvent (RLK_MOUSE1 + i, down);
+			}
+		}
+	}
+
+	// One wheel notch is a down and an up, as the X11 driver did it.
+	while (wheel >= 1.0f)
+	{
+		PostEvent (RLK_MWHEELUP, 1);
+		PostEvent (RLK_MWHEELUP, 0);
+		wheel -= 1.0f;
+	}
+	while (wheel <= -1.0f)
+	{
+		PostEvent (RLK_MWHEELDOWN, 1);
+		PostEvent (RLK_MWHEELDOWN, 0);
+		wheel += 1.0f;
+	}
+
+	// raylib reports a close request until the next poll only.
+	if (WindowShouldClose ())
+		quitrequested = 1;
+}
+
+static void UpdateGrab (void)
+{
+	int		grab;
+	int		i;
+
+	grab = mousewanted && IsWindowFocused ();
+	if (grab == mousegrabbed)
+		return;
+
+	mousegrabbed = grab;
+#ifdef IN_RAYLIB_KEYLOG
+	printf ("keylog: pointer %s\n", grab ? "captured" : "released");
+#endif
+	if (grab)
+		DisableCursor ();	// relative, raw (unaccelerated) motion
+	else
+		EnableCursor ();
+
+	// Moving the cursor around is not player movement, and buttons
+	// held when the grab ends are released.
+	lastmouse = GetMousePosition ();
+	mousedx = mousedy = 0;
+	wheel = 0;
+	for (i = 0; i < 3; i++)
+		if (mousebuttons & (1 << i))
+			PostEvent (RLK_MOUSE1 + i, 0);
+	mousebuttons = 0;
+}
+
+void RL_PumpEvents (void)
+{
+	// WindowShouldClose is true when there is no window, and the
+	// dedicated server never opens one.
+	if (!windowopen)
+		return;
+
+	ReadPoll ();
+	PollInputEvents ();
+	ReadPoll ();
+
+	// GLFW releases every key when the window loses focus (Alt+Tab),
+	// so nothing stays stuck down; the pointer is let go and captured
+	// again when focus comes back.
+	UpdateGrab ();
+}
+
+int RL_GetKeyEvent (rl_keyevent_t *ev)
+{
+	if (eventtail == eventhead)
+		return 0;
+
+	*ev = events[eventtail];
+	eventtail = (eventtail + 1) % MAXEVENTS;
+	return 1;
+}
+
+void RL_SetMouseGrab (int grab)
+{
+	mousewanted = grab;
+	if (windowopen)
+		UpdateGrab ();
+}
+
+void RL_GetMouseMotion (float *dx, float *dy)
+{
+	*dx = mousedx;
+	*dy = mousedy;
+	mousedx = mousedy = 0;
+}
