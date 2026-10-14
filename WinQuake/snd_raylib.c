@@ -98,6 +98,7 @@ static pthread_mutex_t	capture_mutex = PTHREAD_MUTEX_INITIALIZER;
 static FILE				*capture_fp = NULL;
 static uint32_t			capture_data_bytes = 0;
 static int				capture_from_cmdline = 0;
+static int				capture_rate = 11025;
 
 static cvar_t			snd_capture_cvar = {"snd_capture", "", 0, 0, 0.0f, NULL};
 
@@ -134,7 +135,7 @@ static void StartCapture(const char *filename, int rate)
 	pthread_mutex_lock(&capture_mutex);
 	if (capture_fp)
 	{
-		WriteWavHeader(capture_fp, shm ? shm->speed : 11025, 2, 16, capture_data_bytes);
+		WriteWavHeader(capture_fp, capture_rate, 2, 16, capture_data_bytes);
 		fclose(capture_fp);
 		capture_fp = NULL;
 	}
@@ -153,10 +154,11 @@ static void StartCapture(const char *filename, int rate)
 		return;
 	}
 
+	capture_rate = rate > 0 ? rate : ((shm && shm->speed) ? shm->speed : 11025);
 	capture_data_bytes = 0;
-	WriteWavHeader(capture_fp, rate, 2, 16, 0);
+	WriteWavHeader(capture_fp, capture_rate, 2, 16, 0);
 	pthread_mutex_unlock(&capture_mutex);
-	Con_Printf("snd_capture: recording audio to '%s' (%d Hz 16-bit stereo)\n", filename, rate);
+	Con_Printf("snd_capture: recording audio to '%s' (%d Hz 16-bit stereo)\n", filename, capture_rate);
 }
 
 static void StopCapture(void)
@@ -168,7 +170,7 @@ static void StopCapture(void)
 		return;
 	}
 
-	WriteWavHeader(capture_fp, shm ? shm->speed : 11025, 2, 16, capture_data_bytes);
+	WriteWavHeader(capture_fp, capture_rate, 2, 16, capture_data_bytes);
 	fclose(capture_fp);
 	capture_fp = NULL;
 	uint32_t saved_bytes = capture_data_bytes;
@@ -177,24 +179,25 @@ static void StopCapture(void)
 
 	Con_Printf("snd_capture: capture closed (%u bytes, %.2f s)\n",
 		saved_bytes,
-		shm && shm->speed ? (double)saved_bytes / (shm->speed * 4.0) : 0.0);
+		capture_rate > 0 ? (double)saved_bytes / (capture_rate * 4.0) : 0.0);
 }
 
 static void Snd_Capture_f(void)
 {
 	// Inspect command line argument if any
 	const char *arg = Cvar_VariableString("snd_capture");
+	int rate = (shm && shm->speed) ? shm->speed : capture_rate;
 	if (capture_fp)
 	{
 		StopCapture();
 	}
 	else if (arg && arg[0])
 	{
-		StartCapture(arg, shm ? shm->speed : 11025);
+		StartCapture(arg, rate);
 	}
 	else
 	{
-		StartCapture("quake_audio_capture.wav", shm ? shm->speed : 11025);
+		StartCapture("quake_audio_capture.wav", rate);
 	}
 }
 
@@ -367,6 +370,7 @@ int SNDDMA_Init(void)
 	shm->channels = 2;              // 16-bit stereo
 	shm->samplebits = 16;
 	shm->speed = speed;
+	capture_rate = speed;
 	shm->samples = DMA_BUFFER_SAMPLES;
 	shm->submission_chunk = 1;
 	shm->samplepos = 0;
