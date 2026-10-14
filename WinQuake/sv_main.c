@@ -204,7 +204,7 @@ void SV_SendServerinfo (client_t *client)
 	else
 		MSG_WriteByte (&client->message, GAME_COOP);
 
-	sprintf (message, PR_GetString(sv.edicts->v.message));
+	snprintf (message, sizeof(message), "%s", PR_GetString(sv.edicts->v.message));
 
 	MSG_WriteString (&client->message,message);
 
@@ -657,7 +657,7 @@ void SV_WriteClientdataToMessage (edict_t *ent, sizebuf_t *msg)
 		bits |= SU_ARMOR;
 
 //	if (ent->v.weapon)
-		bits |= SU_WEAPON;
+	bits |= SU_WEAPON;
 
 // send the data
 
@@ -987,7 +987,7 @@ void SV_SendReconnect (void)
 	char	data[128];
 	sizebuf_t	msg;
 
-	msg.data = data;
+	msg.data = (byte *)data;
 	msg.cursize = 0;
 	msg.maxsize = sizeof(data);
 

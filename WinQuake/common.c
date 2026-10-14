@@ -222,6 +222,17 @@ void Q_strcat (char *dest, char *src)
 	Q_strcpy (dest, src);
 }
 
+int Q_snprintf (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list		argptr;
+	int			ret;
+
+	va_start (argptr, fmt);
+	ret = vsnprintf (dest, size, fmt, argptr);
+	va_end (argptr);
+	return ret;
+}
+
 int Q_strcmp (char *s1, char *s2)
 {
 	while (1)
@@ -862,15 +873,15 @@ void COM_FileBase (char *in, char *out)
 	while (s != in && *s != '.')
 		s--;
 	
-	for (s2 = s ; *s2 && *s2 != '/' ; s2--)
+// find the start of the base name without stepping before the string
+	for (s2 = s ; s2 != in && s2[-1] != '/' ; s2--)
 	;
 	
-	if (s-s2 < 2)
+	if (s-s2 < 1)
 		strcpy (out,"?model?");
 	else
 	{
-		s--;
-		strncpy (out,s2+1, s-s2);
+		strncpy (out,s2, s-s2);
 		out[s-s2] = 0;
 	}
 }
@@ -1283,7 +1294,7 @@ void COM_WriteFile (char *filename, void *data, int len)
 	int             handle;
 	char    name[MAX_OSPATH];
 	
-	sprintf (name, "%s/%s", com_gamedir, filename);
+	Q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, filename);
 
 	handle = Sys_FileOpenWrite (name);
 	if (handle == -1)
@@ -1421,7 +1432,7 @@ int COM_FindFile (char *filename, int *handle, FILE **file)
 					continue;
 			}
 			
-			sprintf (netpath, "%s/%s",search->filename, filename);
+			Q_snprintf (netpath, sizeof(netpath), "%s/%s",search->filename, filename);
 			
 			findtime = Sys_FileTime (netpath);
 			if (findtime == -1)
@@ -1434,11 +1445,11 @@ int COM_FindFile (char *filename, int *handle, FILE **file)
 			{	
 #if defined(_WIN32)
 				if ((strlen(netpath) < 2) || (netpath[1] != ':'))
-					sprintf (cachepath,"%s%s", com_cachedir, netpath);
+					Q_snprintf (cachepath, sizeof(cachepath), "%s%s", com_cachedir, netpath);
 				else
-					sprintf (cachepath,"%s%s", com_cachedir, netpath+2);
+					Q_snprintf (cachepath, sizeof(cachepath), "%s%s", com_cachedir, netpath+2);
 #else
-				sprintf (cachepath,"%s%s", com_cachedir, netpath);
+				Q_snprintf (cachepath, sizeof(cachepath), "%s%s", com_cachedir, netpath);
 #endif
 
 				cachetime = Sys_FileTime (cachepath);

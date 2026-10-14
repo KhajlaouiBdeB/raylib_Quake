@@ -454,13 +454,16 @@ void M_ScanSaves (void)
 	{
 		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
 		loadable[i] = false;
-		sprintf (name, "%s/s%i.sav", com_gamedir, i);
+		Q_snprintf (name, sizeof(name), "%s/s%i.sav", com_gamedir, i);
 		f = fopen (name, "r");
 		if (!f)
 			continue;
-		fscanf (f, "%i\n", &version);
-		fscanf (f, "%79s\n", name);
-		strncpy (m_filenames[i], name, sizeof(m_filenames[i])-1);
+		if (fscanf (f, "%i\n", &version) != 1 || fscanf (f, "%79s\n", name) != 1)
+		{
+			fclose (f);
+			continue;
+		}
+		Q_snprintf (m_filenames[i], sizeof(m_filenames[i]), "%s", name);
 
 	// change _ back to space
 		for (j=0 ; j<SAVEGAME_COMMENT_LENGTH ; j++)
@@ -1394,7 +1397,7 @@ void M_UnbindCommand (char *command)
 
 void M_Keys_Draw (void)
 {
-	int		i, l;
+	int		i;
 	int		keys[2];
 	char	*name;
 	int		x, y;
@@ -1414,8 +1417,6 @@ void M_Keys_Draw (void)
 		y = 48 + 8*i;
 
 		M_Print (16, y, bindnames[i][1]);
-
-		l = strlen (bindnames[i][0]);
 
 		M_FindKeysForCommand (bindnames[i][0], keys);
 
@@ -1990,16 +1991,20 @@ forward:
 	}
 
 	if (DirectConfig && (serialConfig_cursor == 3 || serialConfig_cursor == 4))
+	{
 		if (key == K_UPARROW)
 			serialConfig_cursor = 2;
 		else
 			serialConfig_cursor = 5;
+	}
 
 	if (SerialConfig && StartingGame && serialConfig_cursor == 4)
+	{
 		if (key == K_UPARROW)
 			serialConfig_cursor = 3;
 		else
 			serialConfig_cursor = 5;
+	}
 }
 
 //=============================================================================
@@ -2363,10 +2368,12 @@ void M_LanConfig_Key (int key)
 	}
 
 	if (StartingGame && lanConfig_cursor == 2)
+	{
 		if (key == K_UPARROW)
 			lanConfig_cursor = 1;
 		else
 			lanConfig_cursor = 0;
+	}
 
 	l =  Q_atoi(lanConfig_portname);
 	if (l > 65535)

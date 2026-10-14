@@ -109,8 +109,6 @@ Draw_Init
 */
 void Draw_Init (void)
 {
-	int		i;
-
 	draw_chars = W_GetLumpName ("conchars");
 	draw_disc = W_GetLumpName ("disc");
 	draw_backtile = W_GetLumpName ("backtile");
@@ -881,6 +879,8 @@ Call before beginning any disc IO.
 */
 void Draw_BeginDisc (void)
 {
+	if (!draw_disc)
+		return;		// called while loading gfx.wad, before Draw_Init
 
 	D_BeginDirectRect (vid.width - 24, 0, draw_disc->data, 24, 24);
 }
