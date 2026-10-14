@@ -97,17 +97,16 @@ def main():
         id1 = basedir / 'id1'
         id1.mkdir(parents=True)
         (id1 / 'pak0.pak').symlink_to(pak)
-        # Override the packaged quake.rc to prevent the automatic attract loop
-        # from racing our explicit test command. Original default.cfg stays in PAK.
-        (id1 / 'quake.rc').write_text('exec default.cfg\nstuffcmds\n')
+        # Keep the stock quake.rc attract loop. PAK files take precedence over
+        # loose files in this directory, so a loose override cannot disable it.
         checks = ['demo1', 'demo2', 'demo3'] if args.mode == 'timedemo' else [args.mode]
         for check in checks:
             if args.mode == 'demo':
-                commands = ['+startdemos', 'demo1', 'demo2', 'demo3']
+                commands = []
             elif args.mode == 'timedemo':
                 commands = ['+timedemo', check]
             else:
-                commands = ['+toggleconsole'] if args.mode == 'launch' else ['+startdemos', 'demo1', 'demo2', 'demo3']
+                commands = ['+toggleconsole'] if args.mode == 'launch' else []
             command = [str(binary), *args.args, '-basedir', str(basedir), '-condebug',
                        '-nosound', '-nocdaudio', '+developer', '1', '+echo', 'QA_VERIFY_READY', *commands]
             label = check if args.mode == 'timedemo' else args.mode

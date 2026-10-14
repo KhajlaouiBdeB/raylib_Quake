@@ -9,7 +9,7 @@
 
 int main(int argc, char **argv)
 {
-    int no_ready = 0, no_window = 0, demo = 0, timedemo = 0;
+    int no_ready = 0, no_window = 0, demo = 1, timedemo = 0;
     int no_metric = 0, no_demo = 0;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--fixture-exit")) return 7;
@@ -21,9 +21,13 @@ int main(int argc, char **argv)
         no_window |= !strcmp(argv[i], "--fixture-no-window");
         no_metric |= !strcmp(argv[i], "--fixture-no-metric");
         no_demo |= !strcmp(argv[i], "--fixture-no-demo");
-        demo |= !strcmp(argv[i], "+startdemos");
+        if (!strcmp(argv[i], "+startdemos")) {
+            fprintf(stderr, "Host_Error: harness must not duplicate stock startdemos\n");
+            return 11;
+        }
         timedemo |= !strcmp(argv[i], "+timedemo");
     }
+    demo = !timedemo;
     Display *display = XOpenDisplay(NULL);
     if (!display) return 10;
     Window window = XCreateSimpleWindow(display, DefaultRootWindow(display),
