@@ -26,12 +26,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "raylib.h"
 
+typedef int qboolean;
+
 typedef struct cvar_s
 {
 	char	*name;
 	char	*string;
-	int		archive;
-	char	*server;
+	qboolean archive;		// set to true to cause it to be saved to vars.rc
+	qboolean server;		// notifies players when changed
 	float	value;
 	struct cvar_s *next;
 } cvar_t;
@@ -42,7 +44,7 @@ extern void Cvar_RegisterVariable (cvar_t *variable);
 extern float Cvar_VariableValue (char *var_name);
 extern char *Cvar_VariableString (char *var_name);
 
-static cvar_t cd_music_cvar = {"cd_music", "1", 1, NULL, 1.0f, NULL};
+static cvar_t cd_music_cvar = {"cd_music", "1", 1, 0, 1.0f, NULL};
 
 int CDAudio_Init (void);
 void CDAudio_Play (unsigned char track, int looping);

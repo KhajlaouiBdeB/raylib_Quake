@@ -25,12 +25,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdint.h>
 #include <stdatomic.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "raylib.h"
 
 //
 // Quake DMA driver interface & structures (plain C types, no quakedef.h)
 //
+typedef int qboolean;
+
 typedef struct
 {
 	int				gamealive;
@@ -49,8 +52,8 @@ typedef struct cvar_s
 {
 	char	*name;
 	char	*string;
-	int		archive;
-	char	*server;
+	qboolean archive;		// set to true to cause it to be saved to vars.rc
+	qboolean server;		// notifies players when changed
 	float	value;
 	struct cvar_s *next;
 } cvar_t;
@@ -91,11 +94,12 @@ static uint64_t			underrun_frames = 0;
 static int				in_underrun = 0;
 
 // Debug WAV capture
+static pthread_mutex_t	capture_mutex = PTHREAD_MUTEX_INITIALIZER;
 static FILE				*capture_fp = NULL;
 static uint32_t			capture_data_bytes = 0;
 static int				capture_from_cmdline = 0;
 
-static cvar_t			snd_capture_cvar = {"snd_capture", "", 0, NULL, 0, NULL};
+static cvar_t			snd_capture_cvar = {"snd_capture", "", 0, 0, 0.0f, NULL};
 
 // Helpers for WAV capture
 static void WriteWavHeader(FILE *fp, int rate, int channels, int bits, uint32_t data_bytes)
@@ -127,6 +131,7 @@ static void WriteWavHeader(FILE *fp, int rate, int channels, int bits, uint32_t 
 
 static void StartCapture(const char *filename, int rate)
 {
+	pthread_mutex_lock(&capture_mutex);
 	if (capture_fp)
 	{
 		WriteWavHeader(capture_fp, shm ? shm->speed : 11025, 2, 16, capture_data_bytes);
@@ -135,32 +140,44 @@ static void StartCapture(const char *filename, int rate)
 	}
 
 	if (!filename || !filename[0])
+	{
+		pthread_mutex_unlock(&capture_mutex);
 		return;
+	}
 
 	capture_fp = fopen(filename, "wb");
 	if (!capture_fp)
 	{
+		pthread_mutex_unlock(&capture_mutex);
 		Con_Printf("snd_capture: could not open '%s' for writing\n", filename);
 		return;
 	}
 
 	capture_data_bytes = 0;
 	WriteWavHeader(capture_fp, rate, 2, 16, 0);
+	pthread_mutex_unlock(&capture_mutex);
 	Con_Printf("snd_capture: recording audio to '%s' (%d Hz 16-bit stereo)\n", filename, rate);
 }
 
 static void StopCapture(void)
 {
+	pthread_mutex_lock(&capture_mutex);
 	if (!capture_fp)
+	{
+		pthread_mutex_unlock(&capture_mutex);
 		return;
+	}
 
 	WriteWavHeader(capture_fp, shm ? shm->speed : 11025, 2, 16, capture_data_bytes);
 	fclose(capture_fp);
 	capture_fp = NULL;
-	Con_Printf("snd_capture: capture closed (%u bytes, %.2f s)\n",
-		capture_data_bytes,
-		shm && shm->speed ? (double)capture_data_bytes / (shm->speed * 4.0) : 0.0);
+	uint32_t saved_bytes = capture_data_bytes;
 	capture_data_bytes = 0;
+	pthread_mutex_unlock(&capture_mutex);
+
+	Con_Printf("snd_capture: capture closed (%u bytes, %.2f s)\n",
+		saved_bytes,
+		shm && shm->speed ? (double)saved_bytes / (shm->speed * 4.0) : 0.0);
 }
 
 static void Snd_Capture_f(void)
@@ -273,17 +290,16 @@ static void RaylibAudioCallback(void *buffer, unsigned int frames)
 
 	atomic_store_explicit(&consumed_frames, read_start + frames, memory_order_release);
 
-	// Write to capture file if active
-	if (capture_fp)
+	// Write to capture file if active (non-blocking trylock so realtime callback is never stalled)
+	if (pthread_mutex_trylock(&capture_mutex) == 0)
 	{
-		size_t bytes = frames * 2 * sizeof(short);
-		fwrite(out, 1, bytes, capture_fp);
-		capture_data_bytes += (uint32_t)bytes;
-		// Keep header updated and buffer flushed so abrupt exit retains valid WAV
-		long cur_pos = ftell(capture_fp);
-		WriteWavHeader(capture_fp, shm ? shm->speed : 11025, 2, 16, capture_data_bytes);
-		fseek(capture_fp, cur_pos, SEEK_SET);
-		fflush(capture_fp);
+		if (capture_fp)
+		{
+			size_t bytes = frames * 2 * sizeof(short);
+			fwrite(out, 1, bytes, capture_fp);
+			capture_data_bytes += (uint32_t)bytes;
+		}
+		pthread_mutex_unlock(&capture_mutex);
 	}
 }
 
@@ -375,6 +391,7 @@ int SNDDMA_Init(void)
 	snd_inited = 1;
 
 	// Register console commands & cvars
+	Cmd_AddCommand("snd_info", Snd_Stats_f);
 	Cmd_AddCommand("snd_stats", Snd_Stats_f);
 	Cmd_AddCommand("snd_capture_toggle", Snd_Capture_f);
 	Cvar_RegisterVariable(&snd_capture_cvar);
