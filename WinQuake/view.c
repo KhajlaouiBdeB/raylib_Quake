@@ -976,7 +976,7 @@ if (cl.onground && ent->origin[2] - oldz > 0)
 	view->origin[2] += oldz - ent->origin[2];
 }
 else
-	oldz = ent->origin[2];
+		oldz = ent->origin[2];
 
 	if (chase_active.value)
 		Chase_Update ();
