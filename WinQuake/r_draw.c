@@ -364,7 +364,7 @@ void R_EmitCachedEdge (void)
 {
 	edge_t		*pedge_t;
 
-	pedge_t = (edge_t *)((unsigned long)r_edges + r_pedge->cachededgeoffset);
+	pedge_t = (edge_t *)((uintptr_t)r_edges + r_pedge->cachededgeoffset);
 
 	if (!pedge_t->surfs[0])
 		pedge_t->surfs[0] = surface_p - surfaces;
@@ -588,7 +588,7 @@ void R_RenderBmodelFace (bedge_t *pedges, msurface_t *psurf)
 	mplane_t	*pplane;
 	float		distinv;
 	vec3_t		p_normal;
-	medge_t		tedge;
+	static medge_t	tedge;
 	clipplane_t	*pclip;
 
 // skip out if no more surfs

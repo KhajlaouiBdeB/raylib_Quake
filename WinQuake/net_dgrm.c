@@ -25,30 +25,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef BAN_TEST
 #if defined(_WIN32)
 #include <windows.h>
-#elif defined (NeXT)
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #else
-#define AF_INET 		2	/* internet */
-struct in_addr
-{
-	union
-	{
-		struct { unsigned char s_b1,s_b2,s_b3,s_b4; } S_un_b;
-		struct { unsigned short s_w1,s_w2; } S_un_w;
-		unsigned long S_addr;
-	} S_un;
-};
-#define	s_addr	S_un.S_addr	/* can be used for most tcp & ip code */
-struct sockaddr_in
-{
-    short			sin_family;
-    unsigned short	sin_port;
-	struct in_addr	sin_addr;
-    char			sin_zero[8];
-};
-char *inet_ntoa(struct in_addr in);
-unsigned long inet_addr(const char *cp);
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 #endif	// BAN_TEST
 
@@ -99,8 +79,8 @@ char *StrAddr (struct qsockaddr *addr)
 
 
 #ifdef BAN_TEST
-unsigned long banAddr = 0x00000000;
-unsigned long banMask = 0xffffffff;
+unsigned int banAddr = 0x00000000;
+unsigned int banMask = 0xffffffff;
 
 void NET_Ban_f (void)
 {
@@ -529,7 +509,6 @@ static void Test_Poll(void)
 	int		colors;
 	int		frags;
 	int		connectTime;
-	byte	playerNumber;
 
 	net_landriverlevel = testDriver;
 
@@ -554,7 +533,7 @@ static void Test_Poll(void)
 		if (MSG_ReadByte() != CCREP_PLAYER_INFO)
 			Sys_Error("Unexpected repsonse to Player Info request\n");
 
-		playerNumber = MSG_ReadByte();
+		MSG_ReadByte();		// player number
 		Q_strcpy(name, MSG_ReadString());
 		colors = MSG_ReadLong();
 		frags = MSG_ReadLong();
@@ -988,8 +967,10 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 	// check for a ban
 	if (clientaddr.sa_family == AF_INET)
 	{
-		unsigned long testAddr;
-		testAddr = ((struct sockaddr_in *)&clientaddr)->sin_addr.s_addr;
+		struct sockaddr_in sin;
+		unsigned int testAddr;
+		memcpy (&sin, &clientaddr, sizeof(sin));
+		testAddr = sin.sin_addr.s_addr;
 		if ((testAddr & banMask) == banAddr)
 		{
 			SZ_Clear(&net_message);
