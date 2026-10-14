@@ -48,19 +48,21 @@ verify audible output or mixer pacing. The harness terminates only its own
 engine and Xvfb `Popen` children, with a bounded TERM/KILL fallback, including
 on interruption. It never kills by process name or signals Multica.
 
-Each run creates a private basedir, symlinks the checksum-verified shareware
-PAK, and overrides `quake.rc` with `exec default.cfg; stuffcmds` on separate
-lines. This avoids the packaged attract loop racing test commands and avoids
-reading or changing personal configs. Engine args are forwarded first; the
+Each run creates a private basedir and symlinks the checksum-verified shareware
+PAK, avoiding personal configs. It preserves the stock `quake.rc` attract loop:
+PAK files take precedence over loose files in the same directory, so writing a
+loose `quake.rc` cannot override it. Injecting a second `+startdemos` while
+demo1 is playing disables the loop (`demonum = -1`). Demo and soak therefore
+inject no playback command. Engine args are forwarded first; the
 harness owns `-basedir`, `-condebug`, audio flags and test commands. Mods and
 registered data are outside this harness's scope.
 
 | Mode | Required evidence |
 |---|---|
 | `launch` | `Quake Initialized` or harness `QA_VERIFY_READY` echo marker, live process for the settling interval, visible window owned by that PID, window-only PNG showing the console (`+toggleconsole`). Inspect the PNG to confirm recognizable output. |
-| `demo` | `+startdemos demo1 demo2 demo3`; ordered log transitions demo1 → demo2 → demo3 → demo1 show a complete loop; live process and window-only PNG. |
+| `demo` | Stock `quake.rc` playback; ordered log transitions demo1 → demo2 → demo3 → demo1 show a complete loop; live process and window-only PNG (explicit skip with `--headless`). |
 | `timedemo` | Separate processes for demo1, demo2, demo3; positive frames/seconds/fps parsed from Quake's report and printed, live process, window-only PNG per demo. |
-| `soak` | Initialization followed by 60 s of process liveness, stderr collection, and a window-only PNG. It starts the shareware demo loop. |
+| `soak` | Initialization followed by 60 s of process liveness, stderr collection, and a window-only PNG. It preserves the shareware demo loop. |
 
 All modes fail on premature exit, timeout, missing window, matched engine fatal
 errors, or capture failure. `--headless` skips the window/PNG requirement and
@@ -122,17 +124,35 @@ tools/verify.sh launch --timeout 2 verification-results/standin --fixture-no-win
 tools/verify.sh launch --timeout 2 verification-results/standin --fixture-error
 ```
 
-The first four should return 0; the last four must return nonzero. Fixture
+The first four should return 0; the last four must return nonzero. The fixture
+simulates the stock attract loop and rejects an injected `+startdemos`, guarding
+against the duplicate-command regression. Fixture
 timedemos emit **100 frames / 1.0 seconds / 100.0 fps**, intentionally synthetic.
 Check that the recorded child PIDs are absent after every run.
 
 | Engine baseline | demo1 | demo2 | demo3 |
 |---|---|---|---|
-| Frames | TBD | TBD | TBD |
-| Seconds | TBD | TBD | TBD |
-| FPS | TBD | TBD | TBD |
+| Frames | 969 | 985 | 1090 |
+| Reported seconds | 0.3 | 0.3 | 0.4 |
+| Reported FPS | 2997.7 | 3133.6 | 2808.2 |
 
-Engine launch, playback, timing, 60 s stability and screenshots are **TBD until
-an engine binary exists**. Record engine commit, build command, compiler,
-resolution, flags and hardware when filling these numbers. Compare equivalent
-configurations; FPS is machine-dependent and no DOOM gametic count applies.
+Measured 2026-10-14 UTC against PR #2 head
+`7599117637ec023643695122ef1512fb2744c668`, built in a separate checkout with:
+
+```sh
+cmake -S . -B build -G Ninja && cmake --build build
+tools/verify.sh timedemo --headless /absolute/path/to/pr2/build/quake
+tools/verify.sh demo --headless /absolute/path/to/pr2/build/quake
+```
+
+Configuration: GCC 13.3.0, CMake 4.3.5, Ninja 1.11.1, default RelWithDebInfo,
+Linux x86_64 on raydelto-PC (Intel Core i5-11400H), `QUAKE_RAYLIB=OFF`, null
+video rendering into a 320×200 buffer, shareware 1.06, audio muted by the harness.
+The timedemo measurements ran alongside one demo-loop check. Seconds are the
+engine's rounded output; do not recompute FPS from those rounded values.
+Frame counts are useful regression baselines; FPS is machine/load-dependent.
+Compare equivalent configurations; no DOOM gametic count applies.
+
+The null-driver engine supports real launch/demo/timedemo/soak checks but has no
+game window. Headless runs explicitly skip screenshots. Visible raylib output,
+input, audible output and gameplay synchronization remain unverified.
