@@ -9,11 +9,15 @@ compile_commands.json
 *.log
 
 # Quake game data is never committed (shareware pak0.pak is fetched for testing)
+/data/
 *.pak
 *.PAK
+
+# Verification harness output (tools/verify.sh)
+/verification-results/
+__pycache__/
 
 # Files the game writes at runtime
 *.pcx
 *.sav
-*.dem.tmp
 config.cfg
