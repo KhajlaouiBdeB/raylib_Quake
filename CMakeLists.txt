@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 project(raylib_Quake C)
 
 # The WinQuake software renderer. With QUAKE_RAYLIB, `quake` runs with the
-# raylib drivers; `quake-null` (always built) uses the null drivers, has no
-# raylib in it, and is the dedicated server / headless build.
-# Without QUAKE_RAYLIB, `quake` is the null build.
+# raylib video, sound, input and system drivers; `quake-null` (always built)
+# uses the null drivers, has no raylib in it, and is the dedicated server /
+# headless build. Without QUAKE_RAYLIB, `quake` is the null build.
 option(QUAKE_RAYLIB "Build with the raylib video/sound/input drivers" ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -42,22 +42,10 @@ set(QUAKE_NULL_DRIVER_SOURCES
   vid_null.c snd_null.c in_null.c cd_null.c
 )
 
-# Video/input drivers: if raylib video driver exists (QUAK-5), use it;
-# otherwise fall back to null video/input so audio can be verified independently.
-if(EXISTS ${WQ}/vid_raylib.c)
-  set(QUAKE_VIDEO_DRIVER_SOURCES
-    sys_raylib.c vid_raylib.c in_raylib.c bridge_raylib.c
-  )
-else()
-  set(QUAKE_VIDEO_DRIVER_SOURCES
-    sys_linux.c vid_null.c in_null.c
-  )
-endif()
-
-# Raylib sound drivers: DMA sound engine (snd_dma, snd_mem, snd_mix, snd_raylib)
-# and CD audio emulation (cd_raylib).
+# Video, input and system drivers use the bridge to quarantine raylib.h.
+# Audio drivers implement Quake's DMA interface (snd_raylib.c) and CD audio (cd_raylib.c).
 set(QUAKE_RAYLIB_DRIVER_SOURCES
-  ${QUAKE_VIDEO_DRIVER_SOURCES}
+  sys_raylib.c vid_raylib.c in_raylib.c bridge_raylib.c
   net_udp.c net_bsd.c
   snd_dma.c snd_mem.c snd_mix.c snd_raylib.c cd_raylib.c
 )
@@ -113,6 +101,8 @@ if(QUAKE_RAYLIB)
       GIT_TAG 6.0
       GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(raylib)
+    # raylib saves a PNG on F12 by itself; in Quake, F12 is bindable.
+    target_compile_definitions(raylib PRIVATE SUPPORT_SCREEN_CAPTURE=0)
     message(STATUS "Using raylib 6.0 from ${raylib_SOURCE_DIR}")
   endif()
 

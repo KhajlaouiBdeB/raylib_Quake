@@ -156,3 +156,14 @@ Compare equivalent configurations; no DOOM gametic count applies.
 The null-driver engine supports real launch/demo/timedemo/soak checks but has no
 game window. Headless runs explicitly skip screenshots. Visible raylib output,
 input, audible output and gameplay synchronization remain unverified.
+
+### raylib build (QUAK-5)
+
+Since QUAK-5, `build/quake` is the raylib build and runs the window checks
+(no `--headless`); `build/quake-null` is the null-driver build for headless
+runs. With the raylib build at 640×480 under the harness's Xvfb (Mesa
+llvmpipe, so no real vsync), all four modes pass with window captures and the
+timedemo frame counts are unchanged: demo1 969, demo2 985, demo3 1090
+(about 520–590 FPS there, against about 2800–3000 for `quake-null`, which
+neither converts nor presents frames). FPS under Xvfb says nothing about a
+real display. Audible output is still null until QUAK-6.
