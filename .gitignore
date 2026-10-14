@@ -20,4 +20,5 @@ __pycache__/
 # Files the game writes at runtime
 *.pcx
 *.sav
+*.wav
 config.cfg

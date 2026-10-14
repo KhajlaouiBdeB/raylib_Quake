@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(raylib_Quake C)
 
-# The WinQuake software renderer. With QUAKE_RAYLIB, `quake` shows it in a
-# raylib window; `quake-null` (always built) uses the null video, sound, input
-# and CD drivers, has no raylib in it, and is the dedicated server/headless
-# build. Without QUAKE_RAYLIB, `quake` is the null build.
-option(QUAKE_RAYLIB "Build with the raylib video/input/system drivers" ON)
+# The WinQuake software renderer. With QUAKE_RAYLIB, `quake` runs with the
+# raylib video, sound, input and system drivers; `quake-null` (always built)
+# uses the null drivers, has no raylib in it, and is the dedicated server /
+# headless build. Without QUAKE_RAYLIB, `quake` is the null build.
+option(QUAKE_RAYLIB "Build with the raylib video/sound/input drivers" ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
@@ -42,12 +42,12 @@ set(QUAKE_NULL_DRIVER_SOURCES
   vid_null.c snd_null.c in_null.c cd_null.c
 )
 
-# bridge_raylib.c is the only file that includes raylib.h; the other three
-# include only bridge_raylib.h next to the Quake headers.
+# Video, input and system drivers use the bridge to quarantine raylib.h.
+# Audio drivers implement Quake's DMA interface (snd_raylib.c) and CD audio (cd_raylib.c).
 set(QUAKE_RAYLIB_DRIVER_SOURCES
   sys_raylib.c vid_raylib.c in_raylib.c bridge_raylib.c
   net_udp.c net_bsd.c
-  snd_null.c cd_null.c
+  snd_dma.c snd_mem.c snd_mix.c snd_raylib.c cd_raylib.c
 )
 
 list(TRANSFORM QUAKE_CORE_SOURCES PREPEND ${WQ}/)
@@ -76,7 +76,7 @@ function(quake_compile_settings target)
   endif()
 endfunction()
 
-# The engine is compiled once and linked into both executables.
+# The engine core is compiled once and linked into both executables.
 add_library(quake_core OBJECT ${QUAKE_CORE_SOURCES})
 quake_compile_settings(quake_core)
 
