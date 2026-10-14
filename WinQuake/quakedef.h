@@ -61,10 +61,13 @@ void	VID_UnlockBuffer (void);
 
 #endif
 
+// The build may force id386 0 to use the C code paths everywhere.
+#ifndef id386
 #if defined __i386__ // && !defined __sun__
 #define id386	1
 #else
 #define id386	0
+#endif
 #endif
 
 #if id386

@@ -31,10 +31,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
+// The build may force id386 0 to use the C code paths everywhere.
+#ifndef id386
 #ifdef __i386__
 #define id386	1
 #else
 #define id386	0
+#endif
 #endif
 
 // !!! must be kept the same as in d_iface.h !!!
