@@ -82,6 +82,12 @@ D_InitCaches
 */
 void D_InitCaches (void *buffer, int size)
 {
+	int		adjust;
+
+// surfcache_t holds pointers, so every block must be pointer aligned
+	adjust = (int)(-(uintptr_t)buffer & (sizeof(void *) - 1));
+	buffer = (byte *)buffer + adjust;
+	size -= adjust;
 
 	if (!msg_suppress_1)
 		Con_Printf ("%ik surface cache\n", size/1024);
@@ -138,8 +144,8 @@ surfcache_t     *D_SCAlloc (int width, int size)
 	if ((size <= 0) || (size > 0x10000))
 		Sys_Error ("D_SCAlloc: bad cache size %d\n", size);
 	
-	size = (int)&((surfcache_t *)0)->data[size];
-	size = (size + 3) & ~3;
+	size = (int)(offsetof(surfcache_t, data) + size);
+	size = (size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
 	if (size > sc_size)
 		Sys_Error ("D_SCAlloc: %i > cache size",size);
 

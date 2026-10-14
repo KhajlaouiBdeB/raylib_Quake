@@ -39,6 +39,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -61,10 +63,13 @@ void	VID_UnlockBuffer (void);
 
 #endif
 
+// The build may force id386 0 to use the C code paths everywhere.
+#ifndef id386
 #if defined __i386__ // && !defined __sun__
 #define id386	1
 #else
 #define id386	0
+#endif
 #endif
 
 #if id386
@@ -94,7 +99,7 @@ void	VID_UnlockBuffer (void);
 
 
 #define	MAX_QPATH		64			// max length of a quake game pathname
-#define	MAX_OSPATH		128			// max length of a filesystem pathname
+#define	MAX_OSPATH		1024		// max length of a filesystem pathname (was 128)
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 

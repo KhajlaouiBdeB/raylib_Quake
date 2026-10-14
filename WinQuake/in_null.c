@@ -37,3 +37,15 @@ void IN_Move (usercmd_t *cmd)
 {
 }
 
+
+/*
+================
+Sys_SendKeyEvents
+
+The Linux video drivers (vid_svgalib.c, vid_x.c) pump events here; with no
+window there is nothing to read.
+================
+*/
+void Sys_SendKeyEvents (void)
+{
+}

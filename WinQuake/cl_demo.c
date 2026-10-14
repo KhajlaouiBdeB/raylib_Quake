@@ -114,7 +114,11 @@ int CL_GetMessage (void)
 		}
 		
 	// get the next message
-		fread (&net_message.cursize, 4, 1, cls.demofile);
+		if (fread (&net_message.cursize, 4, 1, cls.demofile) != 1)
+		{
+			CL_StopPlayback ();
+			return 0;
+		}
 		VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
 		for (i=0 ; i<3 ; i++)
 		{
@@ -230,7 +234,7 @@ void CL_Record_f (void)
 	else
 		track = -1;	
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
+	Q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
 	
 //
 // start the map up

@@ -511,7 +511,7 @@ void Host_Savegame_f (void)
 		}
 	}
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
+	Q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav");
 	
 	Con_Printf ("Saving game to %s...\n", name);
@@ -569,6 +569,7 @@ void Host_Loadgame_f (void)
 	edict_t	*ent;
 	int		entnum;
 	int		version;
+	int		n;
 	float			spawn_parms[NUM_SPAWN_PARMS];
 
 	if (cmd_source != src_command)
@@ -582,7 +583,7 @@ void Host_Loadgame_f (void)
 
 	cls.demonum = -1;		// stop demo loop in case this fails
 
-	sprintf (name, "%s/%s", com_gamedir, Cmd_Argv(1));
+	Q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, Cmd_Argv(1));
 	COM_DefaultExtension (name, ".sav");
 	
 // we can't call SCR_BeginLoadingPlaque, because too much stack space has
@@ -597,18 +598,31 @@ void Host_Loadgame_f (void)
 		return;
 	}
 
-	fscanf (f, "%i\n", &version);
+	if (fscanf (f, "%i\n", &version) != 1)
+	{
+		fclose (f);
+		Con_Printf ("ERROR: not a savegame.\n");
+		return;
+	}
 	if (version != SAVEGAME_VERSION)
 	{
 		fclose (f);
 		Con_Printf ("Savegame is version %i, not %i\n", version, SAVEGAME_VERSION);
 		return;
 	}
-	fscanf (f, "%s\n", str);
+	n = fscanf (f, "%s\n", str);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		fscanf (f, "%f\n", &spawn_parms[i]);
+		n += fscanf (f, "%f\n", &spawn_parms[i]);
 // this silliness is so we can load 1.06 save files, which have float skill values
-	fscanf (f, "%f\n", &tfloat);
+	n += fscanf (f, "%f\n", &tfloat);
+	n += fscanf (f, "%s\n",mapname);
+	n += fscanf (f, "%f\n",&time);
+	if (n != NUM_SPAWN_PARMS + 4)
+	{
+		fclose (f);
+		Con_Printf ("ERROR: savegame is truncated.\n");
+		return;
+	}
 	current_skill = (int)(tfloat + 0.1);
 	Cvar_SetValue ("skill", (float)current_skill);
 
@@ -617,9 +631,6 @@ void Host_Loadgame_f (void)
 	Cvar_SetValue ("coop", 0);
 	Cvar_SetValue ("teamplay", 0);
 #endif
-
-	fscanf (f, "%s\n",mapname);
-	fscanf (f, "%f\n",&time);
 
 	CL_Disconnect_f ();
 	
@@ -640,7 +651,8 @@ void Host_Loadgame_f (void)
 
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		fscanf (f, "%s\n", str);
+		if (fscanf (f, "%s\n", str) != 1)
+			str[0] = 0;
 		sv.lightstyles[i] = Hunk_Alloc (strlen(str)+1);
 		strcpy (sv.lightstyles[i], str);
 	}
@@ -808,7 +820,8 @@ int LoadGamestate(char *level, char *startspot)
 // load the light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		fscanf (f, "%s\n", str);
+		if (fscanf (f, "%s\n", str) != 1)
+			str[0] = 0;
 		sv.lightstyles[i] = Hunk_Alloc (strlen(str)+1);
 		strcpy (sv.lightstyles[i], str);
 	}
@@ -936,7 +949,7 @@ void Host_Name_f (void)
 		if (Q_strcmp(host_client->name, newName) != 0)
 			Con_Printf ("%s renamed to %s\n", host_client->name, newName);
 	Q_strcpy (host_client->name, newName);
-	host_client->edict->v.netname = host_client->name - pr_strings;
+	host_client->edict->v.netname = PR_SetEngineString(host_client->name);
 	
 // send notification to all clients
 	
@@ -1011,7 +1024,7 @@ void Host_Say(qboolean teamonly)
 	client_t *save;
 	int		j;
 	char	*p;
-	unsigned char	text[64];
+	char		text[64];
 	qboolean	fromServer = false;
 
 	if (cmd_source == src_command)
@@ -1230,11 +1243,11 @@ void Host_Pause_f (void)
 
 		if (sv.paused)
 		{
-			SV_BroadcastPrintf ("%s paused the game\n", pr_strings + sv_player->v.netname);
+			SV_BroadcastPrintf ("%s paused the game\n", PR_GetString(sv_player->v.netname));
 		}
 		else
 		{
-			SV_BroadcastPrintf ("%s unpaused the game\n",pr_strings + sv_player->v.netname);
+			SV_BroadcastPrintf ("%s unpaused the game\n",PR_GetString(sv_player->v.netname));
 		}
 
 	// send notification to all clients
@@ -1308,7 +1321,7 @@ void Host_Spawn_f (void)
 		memset (&ent->v, 0, progs->entityfields * 4);
 		ent->v.colormap = NUM_FOR_EDICT(ent);
 		ent->v.team = (host_client->colors & 15) + 1;
-		ent->v.netname = host_client->name - pr_strings;
+		ent->v.netname = PR_SetEngineString(host_client->name);
 
 		// copy spawn parms out of the client_t
 
@@ -1516,7 +1529,7 @@ Host_Give_f
 void Host_Give_f (void)
 {
 	char	*t;
-	int		v, w;
+	int		v;
 	eval_t	*val;
 
 	if (cmd_source == src_command)
@@ -1675,7 +1688,7 @@ edict_t	*FindViewthing (void)
 	for (i=0 ; i<sv.num_edicts ; i++)
 	{
 		e = EDICT_NUM(i);
-		if ( !strcmp (pr_strings + e->v.classname, "viewthing") )
+		if ( !strcmp (PR_GetString(e->v.classname), "viewthing") )
 			return e;
 	}
 	Con_Printf ("No viewthing on map\n");

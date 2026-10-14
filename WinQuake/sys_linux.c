@@ -96,8 +96,8 @@ void Sys_Printf (char *fmt, ...)
 	if (strlen(text) > sizeof(text))
 		Sys_Error("memory overwrite in Sys_Printf");
 
-    if (nostdout)
-        return;
+	if (nostdout)
+		return;
 
 	for (p = (unsigned char *)text; *p; p++) {
 		*p &= 0x7f;
@@ -251,7 +251,8 @@ void Sys_DebugLog(char *file, char *fmt, ...)
     va_end(argptr);
 //    fd = open(file, O_WRONLY | O_BINARY | O_CREAT | O_APPEND, 0666);
     fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    write(fd, data, strlen(data));
+    if (write(fd, data, strlen(data)) < 0)
+        perror(file);
     close(fd);
 }
 
@@ -273,7 +274,8 @@ void Sys_EditFile(char *filename)
 		if (!editor)
 			editor = "vi";
 		sprintf(cmd, "xterm -e %s %s", editor, filename);
-		system(cmd);
+		if (system(cmd) == -1)
+			perror("system");
 	}
 
 }

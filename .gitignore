@@ -1,5 +1,23 @@
+# CMake build trees
+/build*/
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+compile_commands.json
+
+# Local logs from builds and test runs
+*.log
+
+# Quake game data is never committed (shareware pak0.pak is fetched for testing)
 /data/
-/verification-results/
 *.pak
 *.PAK
+
+# Verification harness output (tools/verify.sh)
+/verification-results/
 __pycache__/
+
+# Files the game writes at runtime
+*.pcx
+*.sav
+config.cfg
