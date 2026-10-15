@@ -5,16 +5,15 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 destination="$root/data/id1/pak0.pak"
 archive_sha=ec6c9d34b1ae0252ac0066045b6611a7919c2a0d78a3a66d9387a8f597553239
 pak_sha=35a9c55e5e5a284a159ad2a62e0e8def23d829561fe2f54eb402dbc0a9a946af
-# Prefer GNU sha256sum (always present on Linux); macOS only ships shasum.
-if command -v sha256sum >/dev/null; then sha256() { sha256sum -- "$1" | cut -d' ' -f1; }
-elif command -v shasum >/dev/null; then sha256() { shasum -a 256 -- "$1" | cut -d' ' -f1; }
-else echo 'FAIL: missing sha256sum or shasum' >&2; exit 1; fi
+# macOS has no GNU sha256sum (BSD sha256sum lacks --check) and Homebrew installs 7-Zip as 7zz.
+sha256() { if command -v shasum >/dev/null; then shasum -a 256 -- "$1"; else sha256sum -- "$1"; fi | cut -d' ' -f1; }
 check() { [[ $(sha256 "$2") == "$1" ]]; }
-# Homebrew's sevenzip package installs 7zz, not 7z.
-if command -v 7z >/dev/null; then sevenz=7z; elif command -v 7zz >/dev/null; then sevenz=7zz; else sevenz=7z; fi
-for tool in curl unzip "$sevenz"; do
-    command -v "$tool" >/dev/null || { echo "FAIL: missing $tool (7z or 7zz; see README)" >&2; exit 1; }
+sevenz=$(command -v 7z || command -v 7zz || true)
+for tool in curl unzip; do
+    command -v "$tool" >/dev/null || { echo "FAIL: missing $tool" >&2; exit 1; }
 done
+command -v shasum >/dev/null || command -v sha256sum >/dev/null || { echo 'FAIL: missing shasum/sha256sum' >&2; exit 1; }
+[[ -n $sevenz ]] || { echo 'FAIL: missing 7z/7zz' >&2; exit 1; }
 mkdir -p "$root/data/id1"
 if [[ -e "$destination" ]]; then
     check "$pak_sha" "$destination" || { echo 'FAIL: existing pak0.pak checksum mismatch; refusing to overwrite' >&2; exit 1; }
