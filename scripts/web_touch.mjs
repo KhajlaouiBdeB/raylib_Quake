@@ -431,8 +431,12 @@ async function desktop() {
   check(tag('pointer locked'), locked);
   if (locked) {
     const c = await canvasSig(p);
+    // Some headless Chromium builds (151) report movementX/Y 0 for
+    // Playwright's mouse moves under pointer lock, so send the moves the
+    // way a locked mouse delivers them: mousemove events with movementX.
     for (let i = 0; i < 10; i++) {
-      await p.page.mouse.move(640 + (i + 1) * 15, 400);
+      await p.eval(() => document.getElementById('canvas').dispatchEvent(
+        new MouseEvent('mousemove', { bubbles: true, movementX: 15, movementY: 0 })));
       await sleep(30);
     }
     await sleep(300);
