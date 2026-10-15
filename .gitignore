@@ -13,8 +13,9 @@ compile_commands.json
 *.pak
 *.PAK
 
-# Verification harness output (tools/verify.sh)
+# Verification harness output (tools/verify.sh, tools/web_touch.mjs)
 /verification-results/
+/web-touch/
 __pycache__/
 
 # Files the game writes at runtime
