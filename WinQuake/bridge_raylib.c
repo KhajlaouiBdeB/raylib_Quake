@@ -590,135 +590,105 @@ void RL_GetMouseMotion (float *dx, float *dy)
 /*
 =============================================================================
 
-TOUCH CONTROLS
+BROWSER TOUCH CONTROLS
 
 =============================================================================
 */
 
 #ifdef __EMSCRIPTEN__
-// Menu keys among the bits of RL_WebTouch, posted as key events when they
-// go down and up. web/shell.html uses the same values.
-static const struct { int bit, code; } touchkeys[] =
+// The page's touch buttons, one RL_WebTouch bit each, in bit order
+// (web/shell.html has the same list).
+static const int	touchcodes[] =
 {
-	{ RLT_ESCAPE, RLK_ESCAPE },
-	{ RLT_ENTER, RLK_ENTER },
-	{ RLT_UP, RLK_UP },
-	{ RLT_DOWN, RLK_DOWN },
-	{ RLT_LEFT, RLK_LEFT },
-	{ RLT_RIGHT, RLK_RIGHT },
-	{ RLT_YES, 'y' },
-	{ RLT_NO, 'n' },
-	{ RLT_CONSOLE, '`' },
+	RLK_TOUCH_FIRE,			// 0x001
+	RLK_TOUCH_JUMP,			// 0x002
+	RLK_TOUCH_NEXTWEAPON,	// 0x004
+	RLK_ESCAPE,				// 0x008
+	RLK_ENTER,				// 0x010
+	'y',					// 0x020
+	'n',					// 0x040
+	RLK_UP,					// 0x080
+	RLK_DOWN,				// 0x100
+	RLK_LEFT,				// 0x200
+	RLK_RIGHT,				// 0x400
+	'`',					// 0x800, the console
 };
 
-#define NUMTOUCHKEYS	(int)(sizeof(touchkeys) / sizeof(touchkeys[0]))
+#define NUMTOUCHCODES	(int)(sizeof(touchcodes) / sizeof(touchcodes[0]))
 
-static int		touchon;
-static int		touchmode = -1;
-static int		touchbits;		// held now
-static int		touchpressed;	// play buttons gone down since the last read
-static float	touchmovex, touchmovey;
-static float	touchlookx, touchlooky;
+static int		touchused;
+static int		touchbits;
+static float	touchside, touchforward;
+static float	touchdx, touchdy;
+static int		playingsent = -1;
 
-static float TouchClamp (float v)
+// Called by the page on every touch change: the buttons held, the stick
+// (-1000 to 1000 each way, screen directions: y is down) and the look drag
+// since the last call, in mouse counts. A button going down or up is a key
+// event, queued with the keyboard's.
+EMSCRIPTEN_KEEPALIVE void RL_WebTouch (int bits, int stickx, int sticky,
+	int dx, int dy)
 {
-	return v < -1.0f ? -1.0f : v > 1.0f ? 1.0f : v;
-}
-
-// The page turns the controls on before it starts the game.
-EMSCRIPTEN_KEEPALIVE void RL_WebTouchEnable (int on)
-{
-	touchon = on;
-}
-
-// The page calls this whenever a control changes: bits is every button
-// held, movex/movey the stick (-1000..1000), lookx/looky the drag in CSS
-// pixels since the last call. Keys post their events at once, so a tap
-// shorter than a frame is still a press and a release.
-EMSCRIPTEN_KEEPALIVE void RL_WebTouch (int bits, int movex, int movey,
-	int lookx, int looky)
-{
-	int		changed = bits ^ touchbits;
 	int		i;
+	int		bit;
 
-	for (i = 0; i < NUMTOUCHKEYS; i++)
-		if (changed & touchkeys[i].bit)
-			PostEvent (touchkeys[i].code, !!(bits & touchkeys[i].bit));
-	touchpressed |= bits & ~touchbits & 0xff;
-	touchbits = bits;
-	touchmovex = TouchClamp (movex / 1000.0f);
-	touchmovey = TouchClamp (movey / 1000.0f);
-	touchlookx += lookx;
-	touchlooky += looky;
-}
-
-// A key typed on the phone's keyboard (the console): ASCII, with
-// Backspace 127, Enter 13 and Esc 27 as Quake numbers them.
-EMSCRIPTEN_KEEPALIVE void RL_WebTouchKey (int code)
-{
-	if (code <= 0 || code > 127)
-		return;
-	PostEvent (code, 1);
-	PostEvent (code, 0);
-}
-
-int RL_TouchActive (void)
-{
-	return touchon;
-}
-
-void RL_SetTouchMode (int mode)
-{
-	if (mode == touchmode)
-		return;
-	touchmode = mode;
-	if (mode != RL_TOUCH_PLAY)
+	touchused = 1;
+	for (i = 0; i < NUMTOUCHCODES; i++)
 	{
-		// a drag or a stick left over from play is not menu input
-		touchlookx = touchlooky = 0;
-		touchpressed = 0;
+		bit = 1 << i;
+		if ((bits ^ touchbits) & bit)
+			PostEvent (touchcodes[i], (bits & bit) != 0);
 	}
-	EM_ASM ({
-		Module.quakeTouchMode = $0;
-		if (Module.quakeOnTouchMode)
-			Module.quakeOnTouchMode ($0);
-	}, mode);
+	touchbits = bits;
+	touchside = stickx / 1000.0f;
+	touchforward = -sticky / 1000.0f;
+	touchdx += dx;
+	touchdy += dy;
 }
 
-int RL_GetTouchButtons (int *pressed)
+// A key typed on the phone's keyboard (console, player name): a press and a
+// release, queued behind the other key events, so a whole word typed
+// between two frames arrives in order. ASCII; 8 is Backspace.
+EMSCRIPTEN_KEEPALIVE void RL_WebTouchKey (int key)
 {
-	*pressed = touchpressed;
-	touchpressed = 0;
-	return touchbits & 0xff;
-}
-
-void RL_GetTouchMove (float *movex, float *movey, float *lookx, float *looky)
-{
-	*movex = touchmovex;
-	*movey = touchmovey;
-	*lookx = touchlookx;
-	*looky = touchlooky;
-	touchlookx = touchlooky = 0;
-}
-#else
-int RL_TouchActive (void)
-{
-	return 0;
-}
-
-void RL_SetTouchMode (int mode)
-{
-	(void)mode;
-}
-
-int RL_GetTouchButtons (int *pressed)
-{
-	*pressed = 0;
-	return 0;
-}
-
-void RL_GetTouchMove (float *movex, float *movey, float *lookx, float *looky)
-{
-	*movex = *movey = *lookx = *looky = 0;
+	if (key == 8)
+		key = RLK_BACKSPACE;
+	if (key != RLK_ENTER && key != RLK_ESCAPE && key != RLK_BACKSPACE
+		&& (key < 32 || key > 126))
+		return;
+	touchused = 1;
+	PostEvent (key, 1);
+	PostEvent (key, 0);
 }
 #endif
+
+void RL_SetPlaying (int playing)
+{
+#ifdef __EMSCRIPTEN__
+	if (playing == playingsent)
+		return;
+	playingsent = playing;
+	EM_ASM ({
+		Module.quakePlaying = $0;
+		if (Module.quakeOnPlaying)
+			Module.quakeOnPlaying ($0);
+	}, playing);
+#else
+	(void)playing;
+#endif
+}
+
+int RL_GetTouchMove (float *side, float *forward, float *dx, float *dy)
+{
+#ifdef __EMSCRIPTEN__
+	*side = touchside;
+	*forward = touchforward;
+	*dx = touchdx;
+	*dy = touchdy;
+	touchdx = touchdy = 0;
+	return touchused;
+#else
+	*side = *forward = *dx = *dy = 0;
+	return 0;
+#endif
+}

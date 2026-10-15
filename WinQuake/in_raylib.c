@@ -29,8 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t	_windowed_mouse = {"_windowed_mouse", "1", true};
 cvar_t	m_filter = {"m_filter", "0", true};
-// Touch controls (browser build): degrees of turn per CSS pixel of drag.
-cvar_t	touch_look = {"touch_look", "0.3", true};
 
 static qboolean	mouse_avail;
 static float	mouse_x, mouse_y;
@@ -69,7 +67,35 @@ static const int	specialkeys[RLK_NUMCODES - RLK_FIRST_SPECIAL] =
 	[RLK_MOUSE3 - RLK_FIRST_SPECIAL] = K_MOUSE3,
 	[RLK_MWHEELUP - RLK_FIRST_SPECIAL] = K_MWHEELUP,
 	[RLK_MWHEELDOWN - RLK_FIRST_SPECIAL] = K_MWHEELDOWN,
+	[RLK_TOUCH_FIRE - RLK_FIRST_SPECIAL] = K_AUX1,
+	[RLK_TOUCH_JUMP - RLK_FIRST_SPECIAL] = K_AUX2,
+	[RLK_TOUCH_NEXTWEAPON - RLK_FIRST_SPECIAL] = K_AUX3,
 };
+
+// The browser's touch buttons are the otherwise unused AUX keys, so they
+// work whatever the keyboard is bound to. A touch key with no binding gets
+// its default when first pressed: default.cfg's unbindall clears them, and
+// Options -> Customize controls can still rebind them.
+static const struct
+{
+	int		key;
+	char	*binding;
+} touchbinds[] =
+{
+	{ K_AUX1, "+attack" },
+	{ K_AUX2, "+jump" },
+	{ K_AUX3, "impulse 10" },
+};
+
+static void IN_BindTouchKey (int key)
+{
+	int		i;
+
+	for (i = 0; i < (int)(sizeof(touchbinds) / sizeof(touchbinds[0])); i++)
+		if (touchbinds[i].key == key
+			&& (!keybindings[key] || !keybindings[key][0]))
+			Key_SetBinding (key, touchbinds[i].binding);
+}
 
 // The Quake key number for a bridge code, 0 if there is none.
 static int IN_TranslateKey (int code)
@@ -81,37 +107,6 @@ static int IN_TranslateKey (int code)
 	if (code < RLK_NUMCODES)
 		return specialkeys[code - RLK_FIRST_SPECIAL];
 	return 0;
-}
-
-// Touch play buttons held as commands now (RLT_FIRE, RLT_JUMP).
-static int		touchdown;
-
-// Fire and jump are +attack and +jump, next weapon impulse 10: what the
-// default keys are bound to, but whatever the bindings are now.
-static void IN_TouchButtons (qboolean playing)
-{
-	int		held, pressed, want;
-
-	held = RL_GetTouchButtons (&pressed);
-	if (!playing)
-		held = pressed = 0;
-	want = held | pressed;
-
-	if ((want & RLT_FIRE) && !(touchdown & RLT_FIRE))
-		Cbuf_AddText ("+attack\n");
-	else if (!(want & RLT_FIRE) && (touchdown & RLT_FIRE))
-		Cbuf_AddText ("-attack\n");
-
-	if ((want & RLT_JUMP) && !(touchdown & RLT_JUMP))
-		Cbuf_AddText ("+jump\n");
-	else if (!(want & RLT_JUMP) && (touchdown & RLT_JUMP))
-		Cbuf_AddText ("-jump\n");
-
-	if (pressed & RLT_NEXTWEAPON)
-		Cbuf_AddText ("impulse 10\n");
-
-	// a tap shorter than a frame is held for one frame
-	touchdown = want & (RLT_FIRE | RLT_JUMP);
 }
 
 /*
@@ -135,15 +130,7 @@ void Sys_SendKeyEvents (void)
 	playing = key_dest == key_game && cls.state == ca_connected
 		&& !cls.demoplayback;
 	RL_SetMouseGrab (mouse_avail && _windowed_mouse.value && playing);
-
-	// The touch controls show what the game takes now.
-	if (RL_TouchActive ())
-	{
-		RL_SetTouchMode (playing ? RL_TOUCH_PLAY
-			: key_dest == key_console || key_dest == key_message
-			? RL_TOUCH_CONSOLE : RL_TOUCH_MENU);
-		IN_TouchButtons (playing);
-	}
+	RL_SetPlaying (playing);
 
 	RL_PumpEvents ();
 
@@ -155,6 +142,8 @@ void Sys_SendKeyEvents (void)
 		// downs and ups are balanced
 		Sys_Printf ("keylog: key %d %s\n", key, ev.down ? "down" : "up");
 #endif
+		if (ev.down)
+			IN_BindTouchKey (key);
 		if (key)
 			Key_Event (key, ev.down);
 	}
@@ -172,9 +161,6 @@ void IN_Init (void)
 {
 	Cvar_RegisterVariable (&_windowed_mouse);
 	Cvar_RegisterVariable (&m_filter);
-#ifdef __EMSCRIPTEN__
-	Cvar_RegisterVariable (&touch_look);
-#endif
 
 	mouse_avail = !COM_CheckParm ("-nomouse");
 	mouse_x = mouse_y = 0;
@@ -192,30 +178,28 @@ void IN_Commands (void)
 {
 }
 
-// The touch stick walks (runs at the rim) and the drag on the right half
-// looks around, always with free look, as a mouse with +mlook does.
+// The browser's touch stick and look drag (RL_GetTouchMove).
 static void IN_TouchMove (usercmd_t *cmd)
 {
-	float	movex, movey, lookx, looky;
-	float	speed;
+	float	side, forward, dx, dy;
 
-	RL_GetTouchMove (&movex, &movey, &lookx, &looky);
-	if (key_dest != key_game || cls.state != ca_connected || cls.demoplayback)
+	if (!RL_GetTouchMove (&side, &forward, &dx, &dy))
 		return;
 
-	speed = cl_forwardspeed.value * cl_movespeedkey.value;
-	cmd->forwardmove -= speed * movey;
-	cmd->sidemove += speed * movex;
+	// Half way out walks, the rim runs (as with the run key held).
+	cmd->sidemove += cl_sidespeed.value * cl_movespeedkey.value * side;
+	cmd->forwardmove += cl_forwardspeed.value * cl_movespeedkey.value * forward;
 
-	cl.viewangles[YAW] -= touch_look.value * lookx;
-	cl.viewangles[PITCH] += touch_look.value * looky;
+	// A drag looks around like the mouse with mouse look on: the
+	// sensitivity, m_yaw and m_pitch (inverted mouse) apply.
+	cl.viewangles[YAW] -= m_yaw.value * sensitivity.value * dx;
+	cl.viewangles[PITCH] += m_pitch.value * sensitivity.value * dy;
 	if (cl.viewangles[PITCH] > 80)
 		cl.viewangles[PITCH] = 80;
 	if (cl.viewangles[PITCH] < -70)
 		cl.viewangles[PITCH] = -70;
 
-	// Keep the view where the player looked: no drift back to level
-	// while walking (V_DriftPitch leaves it alone this frame).
+	// No lookspring: moving forward must not pull the view back level.
 	V_StopPitchDrift ();
 }
 
@@ -223,8 +207,7 @@ void IN_Move (usercmd_t *cmd)
 {
 	float	dx, dy;
 
-	if (RL_TouchActive ())
-		IN_TouchMove (cmd);
+	IN_TouchMove (cmd);
 
 	if (!mouse_avail)
 		return;

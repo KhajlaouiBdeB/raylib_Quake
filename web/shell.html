@@ -42,19 +42,20 @@
         font: .9em monospace; }
   small, .fine { color: #888; font-size: .88em; }
 
-  /* Touch controls (QUAK-29). While a touch game runs, the game fills the
-     screen and the controls lie over it, clear of the notch and the home
-     bar. Only the buttons take touches themselves; the page tracks the rest
-     of the screen (the stick, look drags, menu taps and swipes). */
-  body.touchgame { overflow: hidden; }
-  body.touchgame #stage { position: fixed; inset: 0; width: auto; height: auto;
-                          aspect-ratio: auto; border: 0; z-index: 10; }
-  body.touchgame #canvas { object-fit: contain; }
-  body.touchgame #stage, body.touchgame #canvas, #touch {
+  /* Touch controls (QUAK-31): while a touch game runs the game fills the
+     screen, with the controls over it, clear of the notch and the home
+     bar. Only the buttons take touches themselves; the page tracks the
+     stick, look drags and menu taps on the rest of the screen. */
+  body.touchplay { overflow: hidden; }
+  body.touchplay main > :not(#stage) { display: none; }
+  body.touchplay #stage { position: fixed; inset: 0; width: auto; aspect-ratio: auto;
+                          border: 0; z-index: 1; }
+  body.touchplay #canvas { object-fit: contain; }
+  body.touchplay, body.touchplay #canvas, #touch {
     touch-action: none; -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-  #touch { position: fixed; inset: 0; z-index: 20; pointer-events: none;
-           --u: min(12vmin, 64px);
+  #touch { position: fixed; inset: 0; z-index: 2; pointer-events: none;
+           --u: min(12vmin, 68px);
            --l: max(env(safe-area-inset-left), .6em);
            --r: max(env(safe-area-inset-right), .6em);
            --t: max(env(safe-area-inset-top), .5em);
@@ -62,23 +63,19 @@
   #touch button { pointer-events: auto; position: absolute; margin: 0; padding: 0;
                   border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35);
                   background: rgba(40, 40, 40, .45); color: rgba(255, 255, 255, .85);
-                  font: bold calc(var(--u) * .24)/1 system-ui, sans-serif;
+                  font: bold calc(var(--u) * .22)/1 system-ui, sans-serif;
                   width: var(--u); height: var(--u); touch-action: none; }
-  #touch button.down { background: rgba(185, 130, 40, .7);
-                       border-color: rgba(255, 210, 140, .9); }
-  #ttop { position: absolute; left: var(--l); top: var(--t); display: flex; }
+  #touch button.down { background: rgba(185, 125, 30, .65);
+                       border-color: rgba(255, 210, 140, .85); }
+  #touch.play .menu, #touch.menu .play { display: none; }
+  #ttop { position: absolute; left: var(--l); top: var(--t); display: flex; gap: .4em; }
   #ttop button { position: static; border-radius: 6px; width: auto;
-                 height: calc(var(--u) * .62); padding: 0 .9em; margin-right: .4em;
-                 font-size: 13px; }
-  #touch.menu .play, #touch.play .menu, #touch.console .play,
-  #touch.menu .con, #touch.play .con, #touch.console .notcon { display: none; }
-  #touch:not(.withconsole) .contoggle { display: none; }
-  #tfire { right: var(--r); bottom: calc(var(--b) + var(--u) * .9);
+                 height: calc(var(--u) * .62); padding: 0 .9em; font-size: 13px; }
+  #tfire { right: var(--r); bottom: calc(var(--b) + var(--u) * .5);
            width: calc(var(--u) * 1.7) !important; height: calc(var(--u) * 1.7) !important; }
-  #tjump { right: calc(var(--r) + var(--u) * 1.9); bottom: calc(var(--b) + var(--u) * .3);
+  #tjump { right: calc(var(--r) + var(--u) * 1.9); bottom: var(--b);
            width: calc(var(--u) * 1.2) !important; height: calc(var(--u) * 1.2) !important; }
-  #tweapon { right: calc(var(--r) + var(--u) * .35); bottom: calc(var(--b) + var(--u) * 2.8);
-             border-radius: 10px !important; width: calc(var(--u) * 1.1) !important; }
+  #tnext { right: calc(var(--r) + var(--u) * .35); bottom: calc(var(--b) + var(--u) * 2.5); }
   #stick { position: absolute; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2);
            margin: calc(var(--u) * -1.1) 0 0 calc(var(--u) * -1.1); border-radius: 50%;
            border: 2px solid rgba(255, 255, 255, .3); background: rgba(40, 40, 40, .3);
@@ -97,12 +94,11 @@
   #tyes { right: calc(var(--r) + var(--u) * 1.6); bottom: calc(var(--b) + var(--u) * 2.4); }
   #tno { right: var(--r); bottom: calc(var(--b) + var(--u) * 2.7); }
   #tkbd { right: calc(var(--r) + var(--u) * 2.9); bottom: var(--b); }
-  #tcon { right: var(--r); bottom: calc(var(--b) + var(--u) * 2.7); }
   #tinput { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0;
             font-size: 16px; border: 0; padding: 0; }
-  #rotate { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); z-index: 30;
-            padding: .4em .9em; background: rgba(0, 0, 0, .75); border-radius: 4px;
-            font-size: 14px; text-align: center; pointer-events: none; }
+  #rotate { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); z-index: 3;
+            padding: .4em .9em; background: rgba(0, 0, 0, .8); border-radius: 4px;
+            text-align: center; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -115,45 +111,46 @@
   <div id="stage">
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
     <div id="hint" class="hidden">Click to capture the mouse</div>
+    <!-- Touch controls (QUAK-31). data-bit: RL_WebTouch's button bits
+         (WinQuake/bridge_raylib.c). -->
+    <div id="touch" class="hidden menu">
+      <div id="ttop">
+        <button id="tmenu" data-bit="8">MENU</button>
+        <button id="tfull" data-act="full">FULL</button>
+        <button id="tcon" class="hidden" data-bit="2048">~</button>
+      </div>
+      <div id="stick" class="play"><div id="knob"></div></div>
+      <button id="tfire" class="play" data-bit="1">FIRE</button>
+      <button id="tjump" class="play" data-bit="2">JUMP</button>
+      <button id="tnext" class="play" data-bit="4">WPN</button>
+      <button id="tup" class="menu" data-bit="128">&#9650;</button>
+      <button id="tdown" class="menu" data-bit="256">&#9660;</button>
+      <button id="tleft" class="menu" data-bit="512">&#9664;</button>
+      <button id="tright" class="menu" data-bit="1024">&#9654;</button>
+      <button id="tok" class="menu" data-bit="16">OK</button>
+      <button id="tback" class="menu" data-bit="8">BACK</button>
+      <button id="tyes" class="menu" data-bit="32">Y</button>
+      <button id="tno" class="menu" data-bit="64">N</button>
+      <button id="tkbd" class="menu" data-act="kbd">&#9000;</button>
+    </div>
+    <input id="tinput" type="text" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" enterkeyhint="done" tabindex="-1">
+    <div id="rotate" class="hidden">Turn your device sideways to play</div>
     <div id="overlay">
       <div id="panel">
         <div id="bar"><div id="fill"></div></div>
         <div id="status">Loading…</div>
         <button id="play" disabled>Click to play</button>
         <div class="fine">Downloads about 20 MB the first time. Sound starts with the click.</div>
+        <div class="fine touchhelp hidden">Touch: left thumb moves, drag on the
+          right to look, FIRE / JUMP / WPN on the right, MENU at the top. In
+          menus tap the picture for Enter and swipe to move.</div>
       </div>
     </div>
   </div>
   <div id="tools">
     <button id="full">Fullscreen</button>
   </div>
-
-  <!-- Touch controls (QUAK-29). data-bit: RL_WebTouch bits, RLT_* in
-       WinQuake/bridge_raylib.h. -->
-  <div id="touch" class="hidden menu">
-    <div id="ttop">
-      <button class="notcon" data-bit="256">MENU</button>
-      <button class="contoggle notcon" data-bit="65536">~</button>
-      <button id="tfull" data-act="full">Fullscreen</button>
-    </div>
-    <div id="stick" class="play"><div id="knob"></div></div>
-    <button id="tfire" class="play" data-bit="1">FIRE</button>
-    <button id="tjump" class="play" data-bit="2">JUMP</button>
-    <button id="tweapon" class="play" data-bit="4">WPN&nbsp;&rsaquo;</button>
-    <button id="tup" class="menu" data-bit="1024">&#9650;</button>
-    <button id="tdown" class="menu" data-bit="2048">&#9660;</button>
-    <button id="tleft" class="menu" data-bit="4096">&#9664;</button>
-    <button id="tright" class="menu" data-bit="8192">&#9654;</button>
-    <button id="tok" class="menu" data-bit="512">OK</button>
-    <button id="tback" class="menu" data-bit="256">BACK</button>
-    <button id="tyes" class="menu notcon" data-bit="16384">Y</button>
-    <button id="tno" class="menu notcon" data-bit="32768">N</button>
-    <button id="tkbd" class="con" data-act="kbd">&#9000;</button>
-    <button id="tcon" class="con" data-bit="65536">~</button>
-  </div>
-  <input id="tinput" type="text" autocomplete="off" autocorrect="off"
-         autocapitalize="off" spellcheck="false" enterkeyhint="send" tabindex="-1">
-  <div id="rotate" class="hidden">Turn your device sideways for a bigger picture</div>
 
   <h2>Controls</h2>
   <table>
@@ -167,16 +164,14 @@
     <tr><td><kbd>Esc</kbd></td><td>Menu (new game, load/save, options)</td></tr>
     <tr><td><kbd>~</kbd></td><td>Console</td></tr>
     <tr><td><kbd>Alt</kbd>+<kbd>Enter</kbd></td><td>Fullscreen</td></tr>
+    <tr><td>Touch</td><td>On phones and tablets (or with <code>?touch=1</code>;
+      <code>?touch=0</code> turns it off): drag on the left half to move,
+      on the right half to look; FIRE, JUMP and WPN (next weapon) on the
+      right; MENU (<kbd>Esc</kbd>) at the top. In menus tap the picture for
+      <kbd>Enter</kbd>, swipe or use the arrows to move, Y/N answer
+      questions and &#9000; opens the phone's keyboard. Add
+      <code>&amp;console=1</code> for a console button.</td></tr>
   </table>
-  <p class="touchhelp hidden"><b>Touch:</b> drag on the left half of the
-    screen to move (the further, the faster), drag on the right half to look
-    around. FIRE, JUMP and WPN&nbsp;&rsaquo; (next weapon) are on the right,
-    MENU (Esc) at the top: New Game, Load and Save are in Single Player. In
-    menus tap the picture for Enter, swipe or use the arrows to move, Y/N
-    answer questions. Play sideways. <code>?touch=0</code> in the address
-    turns the touch controls off, <code>?touch=1</code> forces them on, and
-    <code>?console=1</code> adds a console button (~) with the phone's
-    keyboard.</p>
   <p class="fine">Settings (config.cfg) and saved games stay in this browser
     (IndexedDB). There is no multiplayer in the browser build: a page cannot
     open UDP sockets. Starting a new game from the menu while one is running
@@ -291,11 +286,323 @@
       return;
     running = true;
     overlay.classList.add('hidden');
-    canvas.focus();
     touchStart();
+    canvas.focus();
     // Called from the click, so the audio context is allowed to start.
     Module.callMain(gameArgs());
   }
+
+  // ---- touch controls (QUAK-31) -------------------------------------------
+  // On where the main pointer is a finger; ?touch=1 / ?touch=0 force them
+  // on or off. The keyboard and the mouse work either way.
+  var touchArg = query.get('touch');
+  var touchOn = touchArg === '1' ? true : touchArg === '0' ? false
+    : window.matchMedia('(pointer: coarse)').matches;
+  var finePointer = window.matchMedia('(any-pointer: fine)').matches;
+  var lastTouch = -1e9;
+  document.querySelectorAll('.touchhelp').forEach(function (el) {
+    el.classList.toggle('hidden', !touchOn);
+  });
+
+  // RL_WebTouch's button bits (WinQuake/bridge_raylib.c)
+  var T_ENTER = 0x10, T_UP = 0x80, T_DOWN = 0x100, T_LEFT = 0x200, T_RIGHT = 0x400;
+  var LOOK = 5;              // mouse counts per CSS pixel of look drag
+  var touchEl = document.getElementById('touch');
+  var stickEl = document.getElementById('stick');
+  var knob = document.getElementById('knob');
+  var tinput = document.getElementById('tinput');
+  var rotate = document.getElementById('rotate');
+  var tbits = 0;             // buttons held
+  var stickX = 0, stickY = 0;
+  var lookX = 0, lookY = 0;  // look drag not sent yet, in counts
+  var fingers = {};          // touch identifier -> what it does
+  var playing = false;
+
+  if (query.get('console') === '1')
+    document.getElementById('tcon').classList.remove('hidden');
+  if (!document.fullscreenEnabled)
+    document.getElementById('tfull').classList.add('hidden');  // iPhone Safari
+
+  function sendTouch() {
+    if (!running || !Module._RL_WebTouch)
+      return;
+    var dx = Math.trunc(lookX), dy = Math.trunc(lookY);
+    lookX -= dx;
+    lookY -= dy;
+    Module._RL_WebTouch(tbits, stickX, stickY, dx, dy);
+  }
+
+  // A key tap: down now, up a moment later (the game reads keys once a frame).
+  function tapKey(bit) {
+    tbits |= bit;
+    sendTouch();
+    setTimeout(function () { tbits &= ~bit; sendTouch(); }, 90);
+  }
+
+  function resetStick() {
+    stickX = stickY = 0;
+    stickEl.style.left = stickEl.style.top = '';
+    knob.style.transform = '';
+  }
+
+  // Let go of everything: the buttons, the stick and the look drag.
+  function releaseFingers() {
+    Object.keys(fingers).forEach(function (id) {
+      if (fingers[id].button)
+        fingers[id].button.classList.remove('down');
+    });
+    fingers = {};
+    tbits = 0;
+    lookX = lookY = 0;
+    resetStick();
+    sendTouch();
+  }
+
+  // Play or menu layout; the game says which (Module.quakeOnPlaying).
+  function setMode(p) {
+    playing = !!p;
+    touchEl.classList.toggle('play', playing);
+    touchEl.classList.toggle('menu', !playing);
+    if (touchOn && running)
+      releaseFingers();
+  }
+
+  function updateRotate() {
+    rotate.classList.toggle('hidden', !(running && touchOn && innerHeight > innerWidth));
+  }
+  window.addEventListener('resize', updateRotate);
+
+  function touchStart() {
+    if (!touchOn)
+      return;
+    document.body.classList.add('touchplay');
+    touchEl.classList.remove('hidden');
+    setMode(Module.quakePlaying);
+    updateRotate();
+  }
+
+  function touchStop() {
+    document.body.classList.remove('touchplay');
+    touchEl.classList.add('hidden');
+    rotate.classList.add('hidden');
+    fingers = {};
+    tbits = 0;
+    resetStick();
+  }
+
+  function moveStick(f, x, y) {
+    var r = stickEl.offsetWidth / 2 || 60, dx = x - f.x0, dy = y - f.y0;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d > r) {
+      dx *= r / d;
+      dy *= r / d;
+      d = r;
+    }
+    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    // 12% dead zone, then linear to full speed (running) at the rim
+    var k = d < r * 0.12 ? 0 : (d - r * 0.12) / (r * 0.88) / d;
+    stickX = Math.round(dx * k * 1000) || 0;
+    stickY = Math.round(dy * k * 1000) || 0;
+  }
+
+  function buttonOf(el) {
+    while (el && el !== touchEl && el !== document.body) {
+      if (el.tagName === 'BUTTON' && touchEl.contains(el))
+        return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  // Browsers start audio only from a user's gesture; miniaudio (raylib's
+  // audio) resumes its context on touchend, which this does again in case
+  // the game's own handlers came too late.
+  function unlockAudio() {
+    try {
+      if (window.miniaudio && window.miniaudio.unlock)
+        window.miniaudio.unlock();
+    } catch (e) {}
+  }
+
+  function onTouchStart(e) {
+    if (!touchOn || !running)
+      return;
+    var t0 = e.changedTouches[0];
+    if (t0.target !== canvas && !touchEl.contains(t0.target))
+      return;                    // the page's own links and buttons
+    lastTouch = performance.now();
+    e.preventDefault();          // no mouse events, so no pointer lock
+    e.stopPropagation();         // raylib's (GLFW's) touch handling stays out
+    if (document.activeElement === tinput)
+      tinput.blur();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      var b = buttonOf(t.target);
+      var f = { x0: t.clientX, y0: t.clientY, t0: performance.now(),
+                x: t.clientX, y: t.clientY };
+      if (b) {
+        f.button = b;
+        b.classList.add('down');
+        if (b.dataset.bit) {
+          f.bit = +b.dataset.bit;
+          tbits |= f.bit;
+        }
+      } else if (!playing) {
+        f.kind = 'menu';
+      } else if (t.clientX < innerWidth * 0.45) {
+        f.kind = 'stick';
+        stickEl.style.left = t.clientX + 'px';
+        stickEl.style.top = t.clientY + 'px';
+      } else {
+        f.kind = 'look';
+      }
+      fingers[t.identifier] = f;
+    }
+    sendTouch();
+  }
+
+  function onTouchMove(e) {
+    if (!touchOn || !running)
+      return;
+    var used = false;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i], f = fingers[t.identifier];
+      if (!f)
+        continue;
+      used = true;
+      if (f.kind === 'stick') {
+        moveStick(f, t.clientX, t.clientY);
+      } else if (f.kind === 'look') {
+        lookX += (t.clientX - f.x) * LOOK;
+        lookY += (t.clientY - f.y) * LOOK;
+      } else if (f.kind === 'menu') {
+        // a swipe moves the menu cursor, one step per 40 px
+        var step = 40, dx = t.clientX - f.x0, dy = t.clientY - f.y0;
+        if (Math.abs(dy) >= step && Math.abs(dy) >= Math.abs(dx)) {
+          tapKey(dy > 0 ? T_DOWN : T_UP);
+          f.y0 += dy > 0 ? step : -step;
+          f.x0 = t.clientX;
+          f.moved = true;
+        } else if (Math.abs(dx) >= step) {
+          tapKey(dx > 0 ? T_RIGHT : T_LEFT);
+          f.x0 += dx > 0 ? step : -step;
+          f.y0 = t.clientY;
+          f.moved = true;
+        }
+      }
+      f.x = t.clientX;
+      f.y = t.clientY;
+    }
+    if (used) {
+      lastTouch = performance.now();
+      e.preventDefault();
+      e.stopPropagation();
+      sendTouch();
+    }
+  }
+
+  function onTouchEnd(e) {
+    if (!touchOn)
+      return;
+    var used = false;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i], f = fingers[t.identifier];
+      if (!f)
+        continue;
+      used = true;
+      delete fingers[t.identifier];
+      if (f.button) {
+        f.button.classList.remove('down');
+        if (f.bit)
+          tbits &= ~f.bit;
+        // These need the user gesture of the touchend.
+        if (e.type === 'touchend' && f.button.dataset.act === 'full')
+          toggleFullscreen();
+        else if (e.type === 'touchend' && f.button.dataset.act === 'kbd')
+          tinput.focus();
+      } else if (f.kind === 'stick') {
+        resetStick();
+      } else if (f.kind === 'menu' && !f.moved && e.type === 'touchend'
+                 && performance.now() - f.t0 < 600
+                 && Math.abs(t.clientX - f.x0) < 15 && Math.abs(t.clientY - f.y0) < 15) {
+        tapKey(T_ENTER);         // a tap on the picture is Enter
+      }
+    }
+    if (used) {
+      lastTouch = performance.now();
+      unlockAudio();
+      if (e.cancelable)
+        e.preventDefault();
+      e.stopPropagation();
+      sendTouch();
+    }
+  }
+
+  // Capture phase on the document: before raylib's listeners on the canvas.
+  var touchOpts = { capture: true, passive: false };
+  document.addEventListener('touchstart', onTouchStart, touchOpts);
+  document.addEventListener('touchmove', onTouchMove, touchOpts);
+  document.addEventListener('touchend', onTouchEnd, touchOpts);
+  document.addEventListener('touchcancel', onTouchEnd, touchOpts);
+  // iOS pinch and double-tap zoom over the game
+  document.addEventListener('gesturestart', function (e) {
+    if (running && touchOn)
+      e.preventDefault();
+  });
+
+  // The phone's keyboard (the console, the player's name): each character
+  // is a key press and release, queued in order by the game
+  // (RL_WebTouchKey), so a word typed between two frames arrives whole.
+  function typeKey(code) {
+    if (running && Module._RL_WebTouchKey)
+      Module._RL_WebTouchKey(code);
+  }
+  function typeText(text) {
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      if (c >= 32 && c < 127)
+        typeKey(c);
+    }
+  }
+  // raylib (GLFW) reads keys on the window in the capture phase; this
+  // listener comes first (this script runs before the game's), so keys
+  // typed into the input reach the game once, from here.
+  function inputKey(e) {
+    if (e.target !== tinput)
+      return;
+    e.stopImmediatePropagation();
+    if (e.type !== 'keydown')
+      return;
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      typeKey(13);
+      tinput.blur();
+    } else if (e.key === 'Backspace' || e.keyCode === 8) {
+      e.preventDefault();
+      typeKey(8);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      typeKey(27);
+      tinput.blur();
+    }
+  }
+  ['keydown', 'keypress', 'keyup'].forEach(function (type) {
+    window.addEventListener(type, inputKey, true);
+  });
+  tinput.addEventListener('beforeinput', function (e) {
+    if (e.inputType === 'deleteContentBackward')
+      typeKey(8);
+    else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+      typeKey(13);
+      tinput.blur();
+    } else if (e.data)
+      typeText(e.data);
+    e.preventDefault();
+  });
+  tinput.addEventListener('input', function () {
+    // browsers that ignore preventDefault on beforeinput
+    tinput.value = '';
+  });
 
   var Module = window.Module = {
     canvas: canvas,
@@ -353,7 +660,11 @@
       failed = true;
       showOverlay('The game crashed: ' + what + '\n\n' + lastlines.join('\n'), true);
     },
-    quakeWantsPointer: 0
+    quakeWantsPointer: 0,
+    // Set by the game: 1 while playing (not a menu, the console or a
+    // demo), for the touch controls' layout.
+    quakePlaying: 0,
+    quakeOnPlaying: function (playing) { setMode(playing); }
   };
   window.addEventListener('error', function (e) {
     if (!running || quitting)
@@ -361,19 +672,14 @@
     log(String(e.message));
   });
 
-  // With touch controls the whole page goes fullscreen, so the controls
-  // stay over the game, and a phone turns sideways where it may.
   function toggleFullscreen() {
-    var el = touchOn ? document.documentElement : canvas;
-    var req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (document.fullscreenElement || document.webkitFullscreenElement)
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else if (req)  // not on iPhone Safari, which has no fullscreen for pages
-      Promise.resolve(req.call(el)).then(function () {
-        canvas.focus();
-        if (touchOn && screen.orientation && screen.orientation.lock)
-          screen.orientation.lock('landscape').catch(function () {});
-      }, function () {});
+    // With touch controls the whole page goes fullscreen, so the controls
+    // stay over the game.
+    var el = touchOn && running ? document.documentElement : canvas;
+    if (document.fullscreenElement)
+      document.exitFullscreen();
+    else if (el.requestFullscreen)
+      el.requestFullscreen().then(function () { canvas.focus(); }, function () {});
   }
   document.getElementById('full').onclick = toggleFullscreen;
 
@@ -390,8 +696,11 @@
   var lockpromise = false;  // the request reports its own failure
   canvas.addEventListener('mousedown', function () {
     canvas.focus();
-    if (running && Module.quakeWantsPointer && usePointer
-        && document.pointerLockElement !== canvas) {
+    // A finger never asks for pointer lock (the browser's mouse events
+    // that follow a touch, if any get through, included).
+    if (performance.now() - lastTouch < 1000)
+      return;
+    if (running && Module.quakeWantsPointer && document.pointerLockElement !== canvas) {
       var p = canvas.requestPointerLock();
       lockpromise = !!(p && p.catch);
       if (lockpromise)
@@ -407,8 +716,10 @@
       hint.textContent = 'Click to capture the mouse';
   });
   setInterval(function () {
-    hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer && usePointer
-                                      && document.pointerLockElement !== canvas));
+    hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer
+                                      && document.pointerLockElement !== canvas
+                                      && (!touchOn || finePointer)
+                                      && performance.now() - lastTouch > 1000));
   }, 250);
 
   // Keep the browser's own shortcuts (F1 help, F5 reload, Tab, space
@@ -429,292 +740,8 @@
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && running)
       syncFiles();
-  });
-
-  // ---- touch controls (QUAK-29) -------------------------------------------
-
-  // On for devices whose main pointer is a finger; ?touch=1 / ?touch=0
-  // force them on or off. Keyboard and mouse work either way, but a phone
-  // never asks for pointer lock (there is no pointer to lock).
-  function $(id) { return document.getElementById(id); }
-  var touchArg = query.get('touch');
-  var touchOn = touchArg === '1' ? true : touchArg === '0' ? false
-    : window.matchMedia('(pointer: coarse)').matches;
-  var usePointer = !touchOn || window.matchMedia('(any-pointer: fine)').matches;
-  document.querySelectorAll('.touchhelp').forEach(function (el) {
-    el.classList.toggle('hidden', !touchOn);
-  });
-  if (touchOn)
-    play.textContent = 'Tap to play';
-
-  // Bits of RL_WebTouch (RLT_* in WinQuake/bridge_raylib.h)
-  var T_ENTER = 0x200, T_UP = 0x400, T_DOWN = 0x800, T_LEFT = 0x1000, T_RIGHT = 0x2000;
-  // Layouts, RL_TOUCH_* in WinQuake/bridge_raylib.h
-  var MODES = ['menu', 'play', 'console'];
-  var mode = 'menu';
-  var tbits = 0;             // buttons held
-  var stickX = 0, stickY = 0;
-  var lookX = 0, lookY = 0;  // drag not yet sent, CSS pixels
-  var fingers = {};          // touch identifier -> what it does
-  var touchEl = $('touch'), stickEl = $('stick'), knob = $('knob'), tinput = $('tinput');
-  touchEl.classList.toggle('withconsole', query.get('console') === '1');
-
-  function sendTouch() {
-    if (!Module._RL_WebTouch)
-      return;
-    var lx = Math.trunc(lookX), ly = Math.trunc(lookY);
-    lookX -= lx;
-    lookY -= ly;
-    Module._RL_WebTouch(tbits, stickX, stickY, lx, ly);
-  }
-
-  // A key tap: down now, up a moment later (the game runs at 72 Hz).
-  function tapKey(bit) {
-    tbits |= bit;
-    sendTouch();
-    setTimeout(function () { tbits &= ~bit; sendTouch(); }, 90);
-  }
-
-  // The game says which controls it takes (in_raylib.c, RL_SetTouchMode).
-  function setMode(m) {
-    mode = MODES[m] || 'menu';
-    MODES.forEach(function (name) { touchEl.classList.toggle(name, name === mode); });
-    if (mode !== 'play') {
-      // the fingers on the stick or looking around are let go
-      for (var id in fingers)
-        if (fingers[id].kind === 'stick' || fingers[id].kind === 'look')
-          delete fingers[id];
-      resetStick();
-      sendTouch();
-    }
-    if (mode !== 'console' && document.activeElement === tinput)
-      tinput.blur();
-  }
-  Module.quakeOnTouchMode = setMode;
-
-  function updateRotate() {
-    $('rotate').classList.toggle('hidden', !(running && touchOn &&
-                                             innerHeight > innerWidth * 1.1));
-  }
-  window.addEventListener('resize', updateRotate);
-
-  function touchStart() {
-    if (!touchOn)
-      return;
-    if (Module._RL_WebTouchEnable)
-      Module._RL_WebTouchEnable(1);
-    document.body.classList.add('touchgame');
-    window.scrollTo(0, 0);       // the game covers the screen, from the top
-    touchEl.classList.remove('hidden');
-    setMode(Module.quakeTouchMode | 0);
-    updateRotate();
-  }
-
-  function touchStop() {
-    document.body.classList.remove('touchgame');
-    touchEl.classList.add('hidden');
-    $('rotate').classList.add('hidden');
-    fingers = {};
-    tbits = 0;
-    resetStick();
-    if (document.activeElement === tinput)
-      tinput.blur();
-  }
-
-  function resetStick() {
-    stickX = stickY = 0;
-    stickEl.style.left = stickEl.style.top = '';
-    knob.style.transform = '';
-  }
-
-  function moveStick(f, x, y) {
-    var r = stickEl.offsetWidth / 2 || 60, dx = x - f.x0, dy = y - f.y0;
-    var d = Math.sqrt(dx * dx + dy * dy);
-    if (d > r) {
-      dx *= r / d;
-      dy *= r / d;
-      d = r;
-    }
-    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-    // 12% dead zone, then linear to full speed at the rim
-    var k = d < r * 0.12 ? 0 : (d - r * 0.12) / (r * 0.88) / d;
-    stickX = Math.round(dx * k * 1000) || 0;
-    stickY = Math.round(dy * k * 1000) || 0;
-  }
-
-  function buttonOf(el) {
-    while (el && el !== touchEl && el !== document.body) {
-      if (el.tagName === 'BUTTON' && touchEl.contains(el))
-        return el;
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function ours(target) {
-    return target === canvas || $('stage').contains(target) || touchEl.contains(target);
-  }
-
-  function onTouchStart(e) {
-    if (!touchOn || !running || !ours(e.changedTouches[0].target))
-      return;
-    e.preventDefault();          // no mouse events, no zoom, no scrolling
-    e.stopPropagation();         // raylib's own touch handling stays out
-    if (document.activeElement === tinput)
-      tinput.blur();
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      var t = e.changedTouches[i];
-      var b = buttonOf(t.target);
-      var f = { x0: t.clientX, y0: t.clientY, t0: performance.now(), x: t.clientX, y: t.clientY };
-      if (b) {
-        f.button = b;
-        b.classList.add('down');
-        if (b.dataset.bit) {
-          f.bit = +b.dataset.bit;
-          tbits |= f.bit;
-        }
-      } else if (mode !== 'play') {
-        f.kind = 'menu';
-      } else if (t.clientX < innerWidth * 0.45) {
-        f.kind = 'stick';
-        stickEl.style.left = t.clientX + 'px';
-        stickEl.style.top = t.clientY + 'px';
-      } else {
-        f.kind = 'look';
-      }
-      fingers[t.identifier] = f;
-    }
-    sendTouch();
-  }
-
-  function onTouchMove(e) {
-    if (!touchOn || !running)
-      return;
-    var used = false;
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      var t = e.changedTouches[i], f = fingers[t.identifier];
-      if (!f)
-        continue;
-      used = true;
-      if (f.kind === 'stick') {
-        moveStick(f, t.clientX, t.clientY);
-      } else if (f.kind === 'look') {
-        lookX += t.clientX - f.x;
-        lookY += t.clientY - f.y;
-      } else if (f.kind === 'menu') {
-        // a swipe moves the menu cursor, one step per 40 px
-        var step = 40, dx = t.clientX - f.x0, dy = t.clientY - f.y0;
-        if (Math.abs(dy) >= step && Math.abs(dy) >= Math.abs(dx)) {
-          tapKey(dy > 0 ? T_DOWN : T_UP);
-          f.y0 += dy > 0 ? step : -step;
-          f.x0 = t.clientX;
-          f.moved = true;
-        } else if (Math.abs(dx) >= step) {
-          tapKey(dx > 0 ? T_RIGHT : T_LEFT);
-          f.x0 += dx > 0 ? step : -step;
-          f.y0 = t.clientY;
-          f.moved = true;
-        }
-      }
-      f.x = t.clientX;
-      f.y = t.clientY;
-    }
-    if (used) {
-      e.preventDefault();
-      e.stopPropagation();
-      sendTouch();
-    }
-  }
-
-  function onTouchEnd(e) {
-    if (!touchOn)
-      return;
-    var used = false;
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      var t = e.changedTouches[i], f = fingers[t.identifier];
-      if (!f)
-        continue;
-      used = true;
-      delete fingers[t.identifier];
-      if (f.button) {
-        f.button.classList.remove('down');
-        if (f.bit)
-          tbits &= ~f.bit;
-        // These need the user gesture of the touchend.
-        if (e.type === 'touchend' && f.button.dataset.act === 'full')
-          toggleFullscreen();
-        else if (e.type === 'touchend' && f.button.dataset.act === 'kbd')
-          tinput.focus();
-      } else if (f.kind === 'stick') {
-        resetStick();
-      } else if (f.kind === 'menu' && !f.moved && e.type === 'touchend' &&
-                 performance.now() - f.t0 < 600 &&
-                 Math.abs(t.clientX - f.x0) < 15 && Math.abs(t.clientY - f.y0) < 15) {
-        tapKey(T_ENTER);         // a tap on the picture is Enter
-      }
-    }
-    if (used) {
-      if (e.cancelable)
-        e.preventDefault();
-      e.stopPropagation();
-      sendTouch();
-    }
-  }
-
-  // Capture phase: before raylib's listeners on the canvas. (raylib's
-  // miniaudio unlocks the Web Audio context from its own listeners on
-  // these events; stopPropagation leaves the ones on document alone.)
-  var activeOpts = { capture: true, passive: false };
-  document.addEventListener('touchstart', onTouchStart, activeOpts);
-  document.addEventListener('touchmove', onTouchMove, activeOpts);
-  document.addEventListener('touchend', onTouchEnd, activeOpts);
-  document.addEventListener('touchcancel', onTouchEnd, activeOpts);
-  // iOS pinch and double-tap zoom over the game
-  document.addEventListener('gesturestart', function (e) {
-    if (running && touchOn)
-      e.preventDefault();
-  });
-
-  // The phone's keyboard, for the console: characters as Quake's key
-  // numbers (ASCII; Enter 13, Backspace 127, Esc 27).
-  function typeKey(code) {
-    if (Module._RL_WebTouchKey)
-      Module._RL_WebTouchKey(code);
-  }
-  function typeText(text) {
-    for (var i = 0; i < text.length; i++) {
-      var c = text.charCodeAt(i);
-      if (c >= 32 && c < 127)
-        typeKey(c);
-    }
-  }
-  tinput.addEventListener('keydown', function (e) {
-    e.stopPropagation();         // not to raylib as well
-    if (e.key === 'Enter' || e.keyCode === 13) {
-      e.preventDefault();
-      typeKey(13);
-    } else if (e.key === 'Backspace' || e.keyCode === 8) {
-      e.preventDefault();
-      typeKey(127);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      typeKey(27);
-      tinput.blur();
-    }
-  });
-  tinput.addEventListener('keyup', function (e) { e.stopPropagation(); });
-  tinput.addEventListener('beforeinput', function (e) {
-    if (e.inputType === 'deleteContentBackward')
-      typeKey(127);
-    else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph')
-      typeKey(13);
-    else if (e.data)
-      typeText(e.data);
-    e.preventDefault();
-  });
-  tinput.addEventListener('input', function () {
-    // browsers that ignore preventDefault on beforeinput
-    tinput.value = '';
+    if (document.hidden)
+      releaseFingers();
   });
   window.addEventListener('pagehide', function () {
     if (running)
