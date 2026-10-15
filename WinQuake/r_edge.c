@@ -63,7 +63,7 @@ edge_t	edge_tail;
 edge_t	edge_aftertail;
 edge_t	edge_sentinel;
 
-float	fv;
+static float	fv;	// static: raylib rmodels.c exports a const int fv[][] that would win at link time
 
 void R_GenerateSpans (void);
 void R_GenerateSpansBackward (void);
