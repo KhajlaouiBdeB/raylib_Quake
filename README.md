@@ -1,6 +1,6 @@
 ![Quake running on raylib](docs/screenshot.png)
 
-# raylib_Quake
+# raylib Quake
 
 id Software's GPL Quake (WinQuake software renderer) ported to [raylib](https://www.raylib.com/).
 Above: shareware E1M1 rendered by this port on Linux x86_64.
