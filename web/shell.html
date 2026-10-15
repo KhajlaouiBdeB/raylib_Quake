@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>raylib Quake — play the Quake shareware episode in your browser</title>
 <meta name="description" content="id Software's GPL Quake engine (WinQuake software renderer) ported to raylib and WebAssembly, with the shareware episode.">
 <style>
@@ -41,6 +41,68 @@
   kbd { padding: 0 .3em; border: 1px solid #555; border-radius: 3px; background: #222;
         font: .9em monospace; }
   small, .fine { color: #888; font-size: .88em; }
+
+  /* Touch controls (QUAK-29). While a touch game runs, the game fills the
+     screen and the controls lie over it, clear of the notch and the home
+     bar. Only the buttons take touches themselves; the page tracks the rest
+     of the screen (the stick, look drags, menu taps and swipes). */
+  body.touchgame { overflow: hidden; }
+  body.touchgame #stage { position: fixed; inset: 0; width: auto; height: auto;
+                          aspect-ratio: auto; border: 0; z-index: 10; }
+  body.touchgame #canvas { object-fit: contain; }
+  body.touchgame #stage, body.touchgame #canvas, #touch {
+    touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #touch { position: fixed; inset: 0; z-index: 20; pointer-events: none;
+           --u: min(12vmin, 64px);
+           --l: max(env(safe-area-inset-left), .6em);
+           --r: max(env(safe-area-inset-right), .6em);
+           --t: max(env(safe-area-inset-top), .5em);
+           --b: max(env(safe-area-inset-bottom), .6em); }
+  #touch button { pointer-events: auto; position: absolute; margin: 0; padding: 0;
+                  border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35);
+                  background: rgba(40, 40, 40, .45); color: rgba(255, 255, 255, .85);
+                  font: bold calc(var(--u) * .24)/1 system-ui, sans-serif;
+                  width: var(--u); height: var(--u); touch-action: none; }
+  #touch button.down { background: rgba(185, 130, 40, .7);
+                       border-color: rgba(255, 210, 140, .9); }
+  #ttop { position: absolute; left: var(--l); top: var(--t); display: flex; }
+  #ttop button { position: static; border-radius: 6px; width: auto;
+                 height: calc(var(--u) * .62); padding: 0 .9em; margin-right: .4em;
+                 font-size: 13px; }
+  #touch.menu .play, #touch.play .menu, #touch.console .play,
+  #touch.menu .con, #touch.play .con, #touch.console .notcon { display: none; }
+  #touch:not(.withconsole) .contoggle { display: none; }
+  #tfire { right: var(--r); bottom: calc(var(--b) + var(--u) * .9);
+           width: calc(var(--u) * 1.7) !important; height: calc(var(--u) * 1.7) !important; }
+  #tjump { right: calc(var(--r) + var(--u) * 1.9); bottom: calc(var(--b) + var(--u) * .3);
+           width: calc(var(--u) * 1.2) !important; height: calc(var(--u) * 1.2) !important; }
+  #tweapon { right: calc(var(--r) + var(--u) * .35); bottom: calc(var(--b) + var(--u) * 2.8);
+             border-radius: 10px !important; width: calc(var(--u) * 1.1) !important; }
+  #stick { position: absolute; width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2);
+           margin: calc(var(--u) * -1.1) 0 0 calc(var(--u) * -1.1); border-radius: 50%;
+           border: 2px solid rgba(255, 255, 255, .3); background: rgba(40, 40, 40, .3);
+           left: calc(var(--l) + var(--u) * 1.6); top: calc(100% - var(--b) - var(--u) * 1.6); }
+  #knob { position: absolute; left: 50%; top: 50%; width: var(--u); height: var(--u);
+          margin: calc(var(--u) * -.5) 0 0 calc(var(--u) * -.5); border-radius: 50%;
+          background: rgba(255, 255, 255, .35); }
+  #tup, #tdown, #tleft, #tright { border-radius: 10px !important; }
+  #tup { left: calc(var(--l) + var(--u) * 1.1); bottom: calc(var(--b) + var(--u) * 2.2); }
+  #tdown { left: calc(var(--l) + var(--u) * 1.1); bottom: var(--b); }
+  #tleft { left: var(--l); bottom: calc(var(--b) + var(--u) * 1.1); }
+  #tright { left: calc(var(--l) + var(--u) * 2.2); bottom: calc(var(--b) + var(--u) * 1.1); }
+  #tok { right: var(--r); bottom: calc(var(--b) + var(--u) * 1.1);
+         width: calc(var(--u) * 1.4) !important; height: calc(var(--u) * 1.4) !important; }
+  #tback { right: calc(var(--r) + var(--u) * 1.6); bottom: var(--b); }
+  #tyes { right: calc(var(--r) + var(--u) * 1.6); bottom: calc(var(--b) + var(--u) * 2.4); }
+  #tno { right: var(--r); bottom: calc(var(--b) + var(--u) * 2.7); }
+  #tkbd { right: calc(var(--r) + var(--u) * 2.9); bottom: var(--b); }
+  #tcon { right: var(--r); bottom: calc(var(--b) + var(--u) * 2.7); }
+  #tinput { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0;
+            font-size: 16px; border: 0; padding: 0; }
+  #rotate { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); z-index: 30;
+            padding: .4em .9em; background: rgba(0, 0, 0, .75); border-radius: 4px;
+            font-size: 14px; text-align: center; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -66,6 +128,33 @@
     <button id="full">Fullscreen</button>
   </div>
 
+  <!-- Touch controls (QUAK-29). data-bit: RL_WebTouch bits, RLT_* in
+       WinQuake/bridge_raylib.h. -->
+  <div id="touch" class="hidden menu">
+    <div id="ttop">
+      <button class="notcon" data-bit="256">MENU</button>
+      <button class="contoggle notcon" data-bit="65536">~</button>
+      <button id="tfull" data-act="full">Fullscreen</button>
+    </div>
+    <div id="stick" class="play"><div id="knob"></div></div>
+    <button id="tfire" class="play" data-bit="1">FIRE</button>
+    <button id="tjump" class="play" data-bit="2">JUMP</button>
+    <button id="tweapon" class="play" data-bit="4">WPN&nbsp;&rsaquo;</button>
+    <button id="tup" class="menu" data-bit="1024">&#9650;</button>
+    <button id="tdown" class="menu" data-bit="2048">&#9660;</button>
+    <button id="tleft" class="menu" data-bit="4096">&#9664;</button>
+    <button id="tright" class="menu" data-bit="8192">&#9654;</button>
+    <button id="tok" class="menu" data-bit="512">OK</button>
+    <button id="tback" class="menu" data-bit="256">BACK</button>
+    <button id="tyes" class="menu notcon" data-bit="16384">Y</button>
+    <button id="tno" class="menu notcon" data-bit="32768">N</button>
+    <button id="tkbd" class="con" data-act="kbd">&#9000;</button>
+    <button id="tcon" class="con" data-bit="65536">~</button>
+  </div>
+  <input id="tinput" type="text" autocomplete="off" autocorrect="off"
+         autocapitalize="off" spellcheck="false" enterkeyhint="send" tabindex="-1">
+  <div id="rotate" class="hidden">Turn your device sideways for a bigger picture</div>
+
   <h2>Controls</h2>
   <table>
     <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Move and turn (Quake's original keys; rebind them in Options → Customize controls)</td></tr>
@@ -79,6 +168,15 @@
     <tr><td><kbd>~</kbd></td><td>Console</td></tr>
     <tr><td><kbd>Alt</kbd>+<kbd>Enter</kbd></td><td>Fullscreen</td></tr>
   </table>
+  <p class="touchhelp hidden"><b>Touch:</b> drag on the left half of the
+    screen to move (the further, the faster), drag on the right half to look
+    around. FIRE, JUMP and WPN&nbsp;&rsaquo; (next weapon) are on the right,
+    MENU (Esc) at the top: New Game, Load and Save are in Single Player. In
+    menus tap the picture for Enter, swipe or use the arrows to move, Y/N
+    answer questions. Play sideways. <code>?touch=0</code> in the address
+    turns the touch controls off, <code>?touch=1</code> forces them on, and
+    <code>?console=1</code> adds a console button (~) with the phone's
+    keyboard.</p>
   <p class="fine">Settings (config.cfg) and saved games stay in this browser
     (IndexedDB). There is no multiplayer in the browser build: a page cannot
     open UDP sockets. Starting a new game from the menu while one is running
@@ -131,6 +229,7 @@
 
   function showOverlay(text, error) {
     running = false;
+    touchStop();
     hint.classList.add('hidden');
     if (document.pointerLockElement)
       document.exitPointerLock();
@@ -193,6 +292,7 @@
     running = true;
     overlay.classList.add('hidden');
     canvas.focus();
+    touchStart();
     // Called from the click, so the audio context is allowed to start.
     Module.callMain(gameArgs());
   }
@@ -261,11 +361,19 @@
     log(String(e.message));
   });
 
+  // With touch controls the whole page goes fullscreen, so the controls
+  // stay over the game, and a phone turns sideways where it may.
   function toggleFullscreen() {
-    if (document.fullscreenElement)
-      document.exitFullscreen();
-    else if (canvas.requestFullscreen)
-      canvas.requestFullscreen().then(function () { canvas.focus(); }, function () {});
+    var el = touchOn ? document.documentElement : canvas;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (document.fullscreenElement || document.webkitFullscreenElement)
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else if (req)  // not on iPhone Safari, which has no fullscreen for pages
+      Promise.resolve(req.call(el)).then(function () {
+        canvas.focus();
+        if (touchOn && screen.orientation && screen.orientation.lock)
+          screen.orientation.lock('landscape').catch(function () {});
+      }, function () {});
   }
   document.getElementById('full').onclick = toggleFullscreen;
 
@@ -282,7 +390,8 @@
   var lockpromise = false;  // the request reports its own failure
   canvas.addEventListener('mousedown', function () {
     canvas.focus();
-    if (running && Module.quakeWantsPointer && document.pointerLockElement !== canvas) {
+    if (running && Module.quakeWantsPointer && usePointer
+        && document.pointerLockElement !== canvas) {
       var p = canvas.requestPointerLock();
       lockpromise = !!(p && p.catch);
       if (lockpromise)
@@ -298,7 +407,7 @@
       hint.textContent = 'Click to capture the mouse';
   });
   setInterval(function () {
-    hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer
+    hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer && usePointer
                                       && document.pointerLockElement !== canvas));
   }, 250);
 
@@ -320,6 +429,292 @@
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && running)
       syncFiles();
+  });
+
+  // ---- touch controls (QUAK-29) -------------------------------------------
+
+  // On for devices whose main pointer is a finger; ?touch=1 / ?touch=0
+  // force them on or off. Keyboard and mouse work either way, but a phone
+  // never asks for pointer lock (there is no pointer to lock).
+  function $(id) { return document.getElementById(id); }
+  var touchArg = query.get('touch');
+  var touchOn = touchArg === '1' ? true : touchArg === '0' ? false
+    : window.matchMedia('(pointer: coarse)').matches;
+  var usePointer = !touchOn || window.matchMedia('(any-pointer: fine)').matches;
+  document.querySelectorAll('.touchhelp').forEach(function (el) {
+    el.classList.toggle('hidden', !touchOn);
+  });
+  if (touchOn)
+    play.textContent = 'Tap to play';
+
+  // Bits of RL_WebTouch (RLT_* in WinQuake/bridge_raylib.h)
+  var T_ENTER = 0x200, T_UP = 0x400, T_DOWN = 0x800, T_LEFT = 0x1000, T_RIGHT = 0x2000;
+  // Layouts, RL_TOUCH_* in WinQuake/bridge_raylib.h
+  var MODES = ['menu', 'play', 'console'];
+  var mode = 'menu';
+  var tbits = 0;             // buttons held
+  var stickX = 0, stickY = 0;
+  var lookX = 0, lookY = 0;  // drag not yet sent, CSS pixels
+  var fingers = {};          // touch identifier -> what it does
+  var touchEl = $('touch'), stickEl = $('stick'), knob = $('knob'), tinput = $('tinput');
+  touchEl.classList.toggle('withconsole', query.get('console') === '1');
+
+  function sendTouch() {
+    if (!Module._RL_WebTouch)
+      return;
+    var lx = Math.trunc(lookX), ly = Math.trunc(lookY);
+    lookX -= lx;
+    lookY -= ly;
+    Module._RL_WebTouch(tbits, stickX, stickY, lx, ly);
+  }
+
+  // A key tap: down now, up a moment later (the game runs at 72 Hz).
+  function tapKey(bit) {
+    tbits |= bit;
+    sendTouch();
+    setTimeout(function () { tbits &= ~bit; sendTouch(); }, 90);
+  }
+
+  // The game says which controls it takes (in_raylib.c, RL_SetTouchMode).
+  function setMode(m) {
+    mode = MODES[m] || 'menu';
+    MODES.forEach(function (name) { touchEl.classList.toggle(name, name === mode); });
+    if (mode !== 'play') {
+      // the fingers on the stick or looking around are let go
+      for (var id in fingers)
+        if (fingers[id].kind === 'stick' || fingers[id].kind === 'look')
+          delete fingers[id];
+      resetStick();
+      sendTouch();
+    }
+    if (mode !== 'console' && document.activeElement === tinput)
+      tinput.blur();
+  }
+  Module.quakeOnTouchMode = setMode;
+
+  function updateRotate() {
+    $('rotate').classList.toggle('hidden', !(running && touchOn &&
+                                             innerHeight > innerWidth * 1.1));
+  }
+  window.addEventListener('resize', updateRotate);
+
+  function touchStart() {
+    if (!touchOn)
+      return;
+    if (Module._RL_WebTouchEnable)
+      Module._RL_WebTouchEnable(1);
+    document.body.classList.add('touchgame');
+    window.scrollTo(0, 0);       // the game covers the screen, from the top
+    touchEl.classList.remove('hidden');
+    setMode(Module.quakeTouchMode | 0);
+    updateRotate();
+  }
+
+  function touchStop() {
+    document.body.classList.remove('touchgame');
+    touchEl.classList.add('hidden');
+    $('rotate').classList.add('hidden');
+    fingers = {};
+    tbits = 0;
+    resetStick();
+    if (document.activeElement === tinput)
+      tinput.blur();
+  }
+
+  function resetStick() {
+    stickX = stickY = 0;
+    stickEl.style.left = stickEl.style.top = '';
+    knob.style.transform = '';
+  }
+
+  function moveStick(f, x, y) {
+    var r = stickEl.offsetWidth / 2 || 60, dx = x - f.x0, dy = y - f.y0;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d > r) {
+      dx *= r / d;
+      dy *= r / d;
+      d = r;
+    }
+    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    // 12% dead zone, then linear to full speed at the rim
+    var k = d < r * 0.12 ? 0 : (d - r * 0.12) / (r * 0.88) / d;
+    stickX = Math.round(dx * k * 1000) || 0;
+    stickY = Math.round(dy * k * 1000) || 0;
+  }
+
+  function buttonOf(el) {
+    while (el && el !== touchEl && el !== document.body) {
+      if (el.tagName === 'BUTTON' && touchEl.contains(el))
+        return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function ours(target) {
+    return target === canvas || $('stage').contains(target) || touchEl.contains(target);
+  }
+
+  function onTouchStart(e) {
+    if (!touchOn || !running || !ours(e.changedTouches[0].target))
+      return;
+    e.preventDefault();          // no mouse events, no zoom, no scrolling
+    e.stopPropagation();         // raylib's own touch handling stays out
+    if (document.activeElement === tinput)
+      tinput.blur();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      var b = buttonOf(t.target);
+      var f = { x0: t.clientX, y0: t.clientY, t0: performance.now(), x: t.clientX, y: t.clientY };
+      if (b) {
+        f.button = b;
+        b.classList.add('down');
+        if (b.dataset.bit) {
+          f.bit = +b.dataset.bit;
+          tbits |= f.bit;
+        }
+      } else if (mode !== 'play') {
+        f.kind = 'menu';
+      } else if (t.clientX < innerWidth * 0.45) {
+        f.kind = 'stick';
+        stickEl.style.left = t.clientX + 'px';
+        stickEl.style.top = t.clientY + 'px';
+      } else {
+        f.kind = 'look';
+      }
+      fingers[t.identifier] = f;
+    }
+    sendTouch();
+  }
+
+  function onTouchMove(e) {
+    if (!touchOn || !running)
+      return;
+    var used = false;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i], f = fingers[t.identifier];
+      if (!f)
+        continue;
+      used = true;
+      if (f.kind === 'stick') {
+        moveStick(f, t.clientX, t.clientY);
+      } else if (f.kind === 'look') {
+        lookX += t.clientX - f.x;
+        lookY += t.clientY - f.y;
+      } else if (f.kind === 'menu') {
+        // a swipe moves the menu cursor, one step per 40 px
+        var step = 40, dx = t.clientX - f.x0, dy = t.clientY - f.y0;
+        if (Math.abs(dy) >= step && Math.abs(dy) >= Math.abs(dx)) {
+          tapKey(dy > 0 ? T_DOWN : T_UP);
+          f.y0 += dy > 0 ? step : -step;
+          f.x0 = t.clientX;
+          f.moved = true;
+        } else if (Math.abs(dx) >= step) {
+          tapKey(dx > 0 ? T_RIGHT : T_LEFT);
+          f.x0 += dx > 0 ? step : -step;
+          f.y0 = t.clientY;
+          f.moved = true;
+        }
+      }
+      f.x = t.clientX;
+      f.y = t.clientY;
+    }
+    if (used) {
+      e.preventDefault();
+      e.stopPropagation();
+      sendTouch();
+    }
+  }
+
+  function onTouchEnd(e) {
+    if (!touchOn)
+      return;
+    var used = false;
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i], f = fingers[t.identifier];
+      if (!f)
+        continue;
+      used = true;
+      delete fingers[t.identifier];
+      if (f.button) {
+        f.button.classList.remove('down');
+        if (f.bit)
+          tbits &= ~f.bit;
+        // These need the user gesture of the touchend.
+        if (e.type === 'touchend' && f.button.dataset.act === 'full')
+          toggleFullscreen();
+        else if (e.type === 'touchend' && f.button.dataset.act === 'kbd')
+          tinput.focus();
+      } else if (f.kind === 'stick') {
+        resetStick();
+      } else if (f.kind === 'menu' && !f.moved && e.type === 'touchend' &&
+                 performance.now() - f.t0 < 600 &&
+                 Math.abs(t.clientX - f.x0) < 15 && Math.abs(t.clientY - f.y0) < 15) {
+        tapKey(T_ENTER);         // a tap on the picture is Enter
+      }
+    }
+    if (used) {
+      if (e.cancelable)
+        e.preventDefault();
+      e.stopPropagation();
+      sendTouch();
+    }
+  }
+
+  // Capture phase: before raylib's listeners on the canvas. (raylib's
+  // miniaudio unlocks the Web Audio context from its own listeners on
+  // these events; stopPropagation leaves the ones on document alone.)
+  var activeOpts = { capture: true, passive: false };
+  document.addEventListener('touchstart', onTouchStart, activeOpts);
+  document.addEventListener('touchmove', onTouchMove, activeOpts);
+  document.addEventListener('touchend', onTouchEnd, activeOpts);
+  document.addEventListener('touchcancel', onTouchEnd, activeOpts);
+  // iOS pinch and double-tap zoom over the game
+  document.addEventListener('gesturestart', function (e) {
+    if (running && touchOn)
+      e.preventDefault();
+  });
+
+  // The phone's keyboard, for the console: characters as Quake's key
+  // numbers (ASCII; Enter 13, Backspace 127, Esc 27).
+  function typeKey(code) {
+    if (Module._RL_WebTouchKey)
+      Module._RL_WebTouchKey(code);
+  }
+  function typeText(text) {
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      if (c >= 32 && c < 127)
+        typeKey(c);
+    }
+  }
+  tinput.addEventListener('keydown', function (e) {
+    e.stopPropagation();         // not to raylib as well
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      typeKey(13);
+    } else if (e.key === 'Backspace' || e.keyCode === 8) {
+      e.preventDefault();
+      typeKey(127);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      typeKey(27);
+      tinput.blur();
+    }
+  });
+  tinput.addEventListener('keyup', function (e) { e.stopPropagation(); });
+  tinput.addEventListener('beforeinput', function (e) {
+    if (e.inputType === 'deleteContentBackward')
+      typeKey(127);
+    else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph')
+      typeKey(13);
+    else if (e.data)
+      typeText(e.data);
+    e.preventDefault();
+  });
+  tinput.addEventListener('input', function () {
+    // browsers that ignore preventDefault on beforeinput
+    tinput.value = '';
   });
   window.addEventListener('pagehide', function () {
     if (running)

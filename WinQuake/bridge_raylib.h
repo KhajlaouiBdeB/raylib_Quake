@@ -115,4 +115,53 @@ void RL_SetMouseGrab (int grab);
 // Mouse motion in pixels while captured, summed since the last call.
 void RL_GetMouseMotion (float *dx, float *dy);
 
+//
+// touch controls (browser build)
+//
+
+// The page (web/shell.html) draws the controls and tracks the fingers; it
+// calls RL_WebTouch with the buttons held, the stick and the look drag.
+// These are its button bits. The menu keys come out of RL_GetKeyEvent as
+// key events; the play buttons are read with RL_GetTouchButtons, so they
+// work whatever the key bindings are.
+enum
+{
+	RLT_FIRE = 0x1,
+	RLT_JUMP = 0x2,
+	RLT_NEXTWEAPON = 0x4,
+
+	RLT_ESCAPE = 0x100,
+	RLT_ENTER = 0x200,
+	RLT_UP = 0x400,
+	RLT_DOWN = 0x800,
+	RLT_LEFT = 0x1000,
+	RLT_RIGHT = 0x2000,
+	RLT_YES = 0x4000,
+	RLT_NO = 0x8000,
+	RLT_CONSOLE = 0x10000
+};
+
+// Which controls the page shows: the menu keys, the play controls, or the
+// menu keys and the phone's keyboard for the console.
+enum
+{
+	RL_TOUCH_MENU,
+	RL_TOUCH_PLAY,
+	RL_TOUCH_CONSOLE
+};
+
+// True when the page has touch controls on. Always 0 on the desktop.
+int RL_TouchActive (void);
+
+// Tells the page which layout to show (sent only when it changes).
+void RL_SetTouchMode (int mode);
+
+// The play buttons held now, and those that went down since the last
+// call (a tap shorter than a frame is still a press).
+int RL_GetTouchButtons (int *pressed);
+
+// The stick, -1..1 on each axis (y is down), and the look drag in CSS
+// pixels since the last call.
+void RL_GetTouchMove (float *movex, float *movey, float *lookx, float *looky);
+
 #endif
