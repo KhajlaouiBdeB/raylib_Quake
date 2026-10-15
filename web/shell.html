@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>raylib Quake — play the Quake shareware episode in your browser</title>
+<meta name="description" content="id Software's GPL Quake engine (WinQuake software renderer) ported to raylib and WebAssembly, with the shareware episode.">
+<style>
+  html, body { margin: 0; background: #111; color: #ccc;
+               font: 15px/1.5 system-ui, sans-serif; }
+  a { color: #d9a441; }
+  main { max-width: 980px; margin: 0 auto; padding: 1em; }
+  h1 { margin: .2em 0; font-size: 1.8em; color: #d9a441; letter-spacing: .04em; }
+  h2 { font-size: 1.15em; color: #ddd; margin: 1.4em 0 .4em; }
+  /* 4:3, as wide as the page allows but never taller than the window */
+  #stage { position: relative; width: min(100%, calc((100vh - 5em) * 4 / 3));
+           margin: 0 auto; aspect-ratio: 4 / 3; background: #000;
+           border: 1px solid #333; box-sizing: border-box; }
+  #canvas { display: block; width: 100%; height: 100%; outline: none; }
+  #canvas:fullscreen { background: #000; object-fit: contain; }
+  #overlay { position: absolute; inset: 0; display: flex; align-items: center;
+             justify-content: center; background: rgba(0, 0, 0, .85); }
+  .hidden { display: none !important; }
+  #panel { width: min(28em, 90%); text-align: center; }
+  #bar { height: .6em; margin: 1em 0; border: 1px solid #555; }
+  #fill { height: 100%; width: 0; background: #d9a441; }
+  #status { min-height: 1.5em; white-space: pre-wrap; }
+  #status.error { color: #f77; text-align: left; font-family: monospace; font-size: .9em; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 4px; }
+  #play { margin: .8em 0; padding: .5em 2em; font-size: 1.3em;
+          background: #b8862d; color: #000; }
+  #play:disabled { background: #555; color: #999; cursor: default; }
+  #hint { position: absolute; top: .6em; left: 50%; transform: translateX(-50%);
+          padding: .3em .8em; background: rgba(0, 0, 0, .75); border-radius: 4px;
+          pointer-events: none; }
+  #tools { display: flex; gap: .6em; justify-content: flex-end; margin: .5em 0; }
+  #tools button { padding: .3em .9em; background: #333; color: #ddd; }
+  table { border-collapse: collapse; }
+  td { padding: .1em 1em .1em 0; vertical-align: top; }
+  td:first-child { color: #eee; white-space: nowrap; }
+  kbd { padding: 0 .3em; border: 1px solid #555; border-radius: 3px; background: #222;
+        font: .9em monospace; }
+  small, .fine { color: #888; font-size: .88em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>raylib Quake</h1>
+  <p>id Software's 1996 <b>Quake</b> engine (the WinQuake software renderer,
+    released under the GPL) running on <a href="https://www.raylib.com/">raylib</a>
+    and WebAssembly, with the free shareware episode <i>Dimension of the Doomed</i>.</p>
+
+  <div id="stage">
+    <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+    <div id="hint" class="hidden">Click to capture the mouse</div>
+    <div id="overlay">
+      <div id="panel">
+        <div id="bar"><div id="fill"></div></div>
+        <div id="status">Loading…</div>
+        <button id="play" disabled>Click to play</button>
+        <div class="fine">Downloads about 20 MB the first time. Sound starts with the click.</div>
+      </div>
+    </div>
+  </div>
+  <div id="tools">
+    <button id="full">Fullscreen</button>
+  </div>
+
+  <h2>Controls</h2>
+  <table>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Move and turn (Quake's original keys; rebind them in Options → Customize controls)</td></tr>
+    <tr><td>Mouse</td><td>Look and fire, once captured: click the game while playing. <kbd>Esc</kbd> lets it go.</td></tr>
+    <tr><td><kbd>Ctrl</kbd> / left button</td><td>Fire</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>Jump / swim up</td></tr>
+    <tr><td><kbd>Alt</kbd></td><td>Strafe (hold)</td></tr>
+    <tr><td><kbd>Shift</kbd></td><td>Run (hold)</td></tr>
+    <tr><td><kbd>1</kbd>–<kbd>8</kbd>, <kbd>/</kbd></td><td>Pick a weapon, next weapon</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Menu (new game, load/save, options)</td></tr>
+    <tr><td><kbd>~</kbd></td><td>Console</td></tr>
+    <tr><td><kbd>Alt</kbd>+<kbd>Enter</kbd></td><td>Fullscreen</td></tr>
+  </table>
+  <p class="fine">Settings (config.cfg) and saved games stay in this browser
+    (IndexedDB). There is no multiplayer in the browser build: a page cannot
+    open UDP sockets. Starting a new game from the menu while one is running
+    does not ask for confirmation here. After quitting, reload the page to
+    play again. Extra command-line options: <code>?args=-skill%202%20%2Bmap%20e1m2</code>.</p>
+
+  <h2>Credits and licenses</h2>
+  <p>Quake engine © 1996–1997 id Software, Inc., released under the
+    <a href="gnu.txt">GNU General Public License v2</a>. This port's source code,
+    including this page, is GPL too:
+    <a href="https://github.com/raydelto/raylib_Quake">github.com/raydelto/raylib_Quake</a>
+    (port by Raydelto Hernandez, Raycasters). Built with
+    <a href="https://www.raylib.com/">raylib</a> (zlib license) and
+    <a href="https://emscripten.org/">Emscripten</a>.</p>
+  <p>The game data is the unmodified <b>Quake shareware</b> episode (version 1.06,
+    <code>pak0.pak</code>), © id Software, which is <b>not</b> covered by the GPL.
+    It is redistributed here free of charge under id's shareware terms:
+    <a href="SLICNSE.TXT">SLICNSE.TXT</a> (shareware license agreement) and
+    <a href="LICINFO.TXT">LICINFO.TXT</a> (distribution information).
+    No registered Quake data is used.</p>
+  <p class="fine">Quake® is a trademark of id Software LLC, a ZeniMax Media
+    company. This site and the raylib Quake project are not affiliated with,
+    endorsed by or sponsored by id Software, ZeniMax Media or Bethesda Softworks.</p>
+</main>
+
+<script>
+(function () {
+  var canvas = document.getElementById('canvas');
+  var overlay = document.getElementById('overlay');
+  var fill = document.getElementById('fill');
+  var statusEl = document.getElementById('status');
+  var play = document.getElementById('play');
+  var hint = document.getElementById('hint');
+  var GAMEDIR = '/quake/id1';  // where Quake writes config.cfg and saves
+  var SAVEDIR = '/persist';    // IndexedDB copy of those files
+  var running = false, failed = false, quitting = false;
+  var lastlines = [];
+  var query = new URLSearchParams(location.search);
+
+  function setStatus(text, error) {
+    statusEl.textContent = text;
+    statusEl.className = error ? 'error' : '';
+  }
+
+  function log(text) {
+    lastlines.push(text);
+    if (lastlines.length > 10)
+      lastlines.shift();
+  }
+
+  function showOverlay(text, error) {
+    running = false;
+    hint.classList.add('hidden');
+    if (document.pointerLockElement)
+      document.exitPointerLock();
+    if (document.fullscreenElement)
+      document.exitFullscreen();
+    overlay.classList.remove('hidden');
+    document.getElementById('bar').classList.add('hidden');
+    setStatus(text, error);
+    play.textContent = 'Play again';
+    play.disabled = false;
+    play.onclick = function () { location.reload(); };
+  }
+
+  // Files Quake writes into id1 (config.cfg, s0.sav...) are copied to
+  // /persist, an IndexedDB file system, whenever they change. pak0.pak
+  // comes with the page and is never stored.
+  var saved = {};
+  function persistable(name) {
+    return !/^\.\.?$/.test(name) && !/\.pak$/i.test(name) && name !== 'qconsole.log';
+  }
+  function syncFiles() {
+    var FS = Module.FS, changed = false;
+    try {
+      FS.readdir(GAMEDIR).forEach(function (name) {
+        if (!persistable(name))
+          return;
+        var st = FS.stat(GAMEDIR + '/' + name);
+        if (!FS.isFile(st.mode))
+          return;
+        var stamp = st.mtime.getTime() + ':' + st.size;
+        if (saved[name] === stamp)
+          return;
+        FS.writeFile(SAVEDIR + '/' + name, FS.readFile(GAMEDIR + '/' + name));
+        saved[name] = stamp;
+        changed = true;
+      });
+    } catch (e) {
+      console.warn('Could not copy saved files:', e);
+      return;
+    }
+    if (changed)
+      FS.syncfs(false, function (err) {
+        if (err)
+          console.warn('Could not save to IndexedDB:', err);
+      });
+  }
+
+  // ?args=... adds command-line options. They go first, because Quake
+  // takes the first copy of an option: the canvas defaults come after.
+  function gameArgs() {
+    var args = (query.get('args') || '').split(/\s+/).filter(Boolean);
+    // A 640x480 frame drawn 2x into the canvas stays sharp when the page
+    // scales the canvas.
+    return args.concat(['-winwidth', '1280', '-winheight', '960']);
+  }
+
+  function start() {
+    if (running || failed)
+      return;
+    running = true;
+    overlay.classList.add('hidden');
+    canvas.focus();
+    // Called from the click, so the audio context is allowed to start.
+    Module.callMain(gameArgs());
+  }
+
+  var Module = window.Module = {
+    canvas: canvas,
+    noInitialRun: true,
+    print: function (text) { console.log(text); log(text); },
+    printErr: function (text) { console.warn(text); log(text); },
+    setStatus: function (text) {
+      var m = text.match(/\((\d+(?:\.\d+)?)\/(\d+)\)/);
+      if (m)
+        fill.style.width = (100 * m[1] / m[2]) + '%';
+      if (text && !running && !failed)
+        setStatus(text.replace(/\s*\(.*\)$/, '…'));
+    },
+    preRun: [function () {
+      var FS = Module.FS;
+      FS.mkdir(SAVEDIR);
+      FS.mount(FS.filesystems.IDBFS, {}, SAVEDIR);
+      Module.addRunDependency('syncfs');
+      FS.syncfs(true, function (err) {
+        if (err)
+          console.warn('Could not read IndexedDB:', err);
+        try {
+          FS.mkdirTree(GAMEDIR);
+          FS.readdir(SAVEDIR).forEach(function (name) {
+            if (!persistable(name))
+              return;
+            FS.writeFile(GAMEDIR + '/' + name, FS.readFile(SAVEDIR + '/' + name));
+            var st = FS.stat(GAMEDIR + '/' + name);
+            saved[name] = st.mtime.getTime() + ':' + st.size;
+          });
+        } catch (e) {
+          console.warn('Could not restore saved files:', e);
+        }
+        Module.removeRunDependency('syncfs');
+      });
+    }],
+    onRuntimeInitialized: function () {
+      fill.style.width = '100%';
+      setStatus('Ready.');
+      play.disabled = false;
+      play.onclick = start;
+    },
+    quakeSyncFiles: syncFiles,
+    quakeQuit: function () {
+      quitting = true;
+      syncFiles();
+      showOverlay('Thanks for playing.');
+    },
+    quakeError: function (message) {
+      failed = true;
+      syncFiles();
+      showOverlay('Error: ' + message, true);
+    },
+    onAbort: function (what) {
+      failed = true;
+      showOverlay('The game crashed: ' + what + '\n\n' + lastlines.join('\n'), true);
+    },
+    quakeWantsPointer: 0
+  };
+  window.addEventListener('error', function (e) {
+    if (!running || quitting)
+      return;
+    log(String(e.message));
+  });
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement)
+      document.exitFullscreen();
+    else if (canvas.requestFullscreen)
+      canvas.requestFullscreen().then(function () { canvas.focus(); }, function () {});
+  }
+  document.getElementById('full').onclick = toggleFullscreen;
+
+  // Pointer lock needs a click; the game says when it wants the mouse
+  // (playing, not in the menu, console or a demo).
+  canvas.addEventListener('mousedown', function () {
+    canvas.focus();
+    if (running && Module.quakeWantsPointer && document.pointerLockElement !== canvas)
+      canvas.requestPointerLock();
+  });
+  setInterval(function () {
+    hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer
+                                      && document.pointerLockElement !== canvas));
+  }, 250);
+
+  // Keep the browser's own shortcuts (F1 help, F5 reload, Tab, space
+  // scrolling, Backspace...) away from the game's keys.
+  window.addEventListener('keydown', function (e) {
+    if (!running)
+      return;
+    if (e.key === 'Enter' && e.altKey) {
+      toggleFullscreen();
+      e.preventDefault();
+      return;
+    }
+    if (/^(F\d+|Tab|Backspace|Arrow\w+|PageUp|PageDown|Home|End| |'|\/)$/.test(e.key)
+        || e.ctrlKey || e.altKey)
+      e.preventDefault();
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && running)
+      syncFiles();
+  });
+  window.addEventListener('pagehide', function () {
+    if (running)
+      syncFiles();
+  });
+})();
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

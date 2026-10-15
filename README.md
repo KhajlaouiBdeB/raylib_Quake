@@ -8,6 +8,7 @@ Above: shareware E1M1 rendered by this port on Linux x86_64.
 - Original id Software readme: [readme.txt](readme.txt)
 - Port notes and build instructions: [docs/PORTING.md](docs/PORTING.md)
 - Testing harness: [docs/TESTING.md](docs/TESTING.md)
+- Browser (WebAssembly) build: [docs/WEB.md](docs/WEB.md) — play the shareware episode at https://www.raydelto.org/quake
 
 ## Build
 
@@ -36,12 +37,23 @@ cmake --build build -j"$(sysctl -n hw.ncpu)"
 
 Tested on macOS 26 / arm64, Apple Clang, CMake 3.29, Ninja 1.12: no compiler warnings from the engine. The only diagnostic is a warning from raylib's vendored `stb_vorbis.c`. raylib's OpenGL deprecation notice during configure is harmless; Cocoa, IOKit and OpenGL come from the macOS SDK. Use `-DCMAKE_DISABLE_FIND_PACKAGE_raylib=ON` to force the FetchContent copy over a Homebrew raylib.
 
+### Web (Emscripten)
+
+```sh
+./tools/fetch_shareware.sh      # the page bundles the shareware pak0.pak and its license
+emcmake cmake -S . -B build-web -G Ninja
+cmake --build build-web
+python3 -m http.server -d build-web 8000
+```
+
+Details, design notes and limits (no multiplayer) in [docs/WEB.md](docs/WEB.md).
+
 ## Game data
 
 Only the shareware data may be used for testing; it is never committed (`data/` is ignored).
 
 ```sh
-./tools/fetch_shareware.sh      # checksum-pinned download of id1/pak0.pak into data/
+./tools/fetch_shareware.sh      # checksum-pinned download of id1/pak0.pak (and the shareware license texts) into data/
 ./build/quake -basedir "$PWD/data" -width 640 -height 480
 ```
 

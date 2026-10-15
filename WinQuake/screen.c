@@ -748,6 +748,12 @@ int SCR_ModalMessage (char *text)
 	if (cls.state == ca_dedicated)
 		return true;
 
+#ifdef __EMSCRIPTEN__
+	// The browser build can't wait for a key inside a frame (nothing
+	// arrives until the frame returns), so the answer is always yes.
+	return true;
+#endif
+
 	scr_notifystring = text;
  
 // draw a fresh screen
