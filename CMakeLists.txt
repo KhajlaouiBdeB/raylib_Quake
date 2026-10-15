@@ -24,7 +24,18 @@ endif()
 option(QUAKE_RAYLIB "Build with the raylib video/sound/input drivers" ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+  if(EMSCRIPTEN)
+    # Debug info would make the .wasm several times larger.
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+  else()
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+  endif()
+endif()
+
+# The browser build (emcmake cmake -B build-web, see web/web.cmake) makes
+# only `quake`, with raylib's web platform; it needs QUAKE_RAYLIB.
+if(EMSCRIPTEN AND NOT QUAKE_RAYLIB)
+  message(FATAL_ERROR "The browser build needs QUAKE_RAYLIB=ON")
 endif()
 
 # gnu11 keeps `false`/`true` usable as qboolean enumerators: they are
@@ -62,9 +73,15 @@ set(QUAKE_NULL_DRIVER_SOURCES
 # Audio drivers implement Quake's DMA interface (snd_raylib.c) and CD audio (cd_raylib.c).
 set(QUAKE_RAYLIB_DRIVER_SOURCES
   sys_raylib.c vid_raylib.c in_raylib.c bridge_raylib.c
-  net_udp.c net_bsd.c
   snd_dma.c snd_mem.c snd_mix.c snd_raylib.c cd_raylib.c
 )
+# A browser has no UDP sockets: id's net_none.c has the loopback driver
+# only (single player, demos).
+if(EMSCRIPTEN)
+  list(APPEND QUAKE_RAYLIB_DRIVER_SOURCES net_none.c)
+else()
+  list(APPEND QUAKE_RAYLIB_DRIVER_SOURCES net_udp.c net_bsd.c)
+endif()
 
 list(TRANSFORM QUAKE_CORE_SOURCES PREPEND ${WQ}/)
 list(TRANSFORM QUAKE_NULL_DRIVER_SOURCES PREPEND ${WQ}/)
@@ -111,8 +128,13 @@ if(QUAKE_RAYLIB)
     include(FetchContent)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
-    # The default desktop backend (GLFW), not the experimental native ones.
-    set(PLATFORM Desktop CACHE STRING "raylib platform")
+    # The default desktop backend (GLFW), not the experimental native ones;
+    # the browser build uses raylib's web platform.
+    if(EMSCRIPTEN)
+      set(PLATFORM Web CACHE STRING "raylib platform" FORCE)
+    else()
+      set(PLATFORM Desktop CACHE STRING "raylib platform")
+    endif()
     FetchContent_Declare(
       raylib
       GIT_REPOSITORY https://github.com/raysan5/raylib.git
@@ -127,6 +149,11 @@ if(QUAKE_RAYLIB)
   add_executable(quake $<TARGET_OBJECTS:quake_core> ${QUAKE_RAYLIB_DRIVER_SOURCES})
   quake_compile_settings(quake)
   target_link_libraries(quake PRIVATE raylib m)
+
+  if(EMSCRIPTEN)
+    include(web/web.cmake)
+    return()
+  endif()
 
   set(QUAKE_NULL_TARGET quake-null)
 else()

@@ -1,0 +1,17 @@
+# Served as quake/.htaccess. Only affects this directory.
+DirectoryIndex index.html
+
+<IfModule mod_mime.c>
+  AddType application/wasm .wasm
+  AddType application/octet-stream .data
+  AddType text/javascript .js
+  AddType text/plain .TXT .txt
+  AddCharset utf-8 .html
+</IfModule>
+
+# The page and the engine change together on every deploy; the big .data
+# (the shareware PAK) does not, but it shares the build's name, so let the
+# browser revalidate everything.
+<IfModule mod_headers.c>
+  Header set Cache-Control "no-cache"
+</IfModule>

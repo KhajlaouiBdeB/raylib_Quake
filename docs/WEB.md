@@ -1,0 +1,90 @@
+# Browser (WebAssembly) build
+
+The software-rendered `quake` target also builds with Emscripten and raylib's
+web platform (`PLATFORM_WEB`, WebGL 1 / OpenGL ES 2). It plays the
+shareware episode in a page; it is live at https://www.raydelto.org/quake.
+
+## Build
+
+Needs an activated [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
+(built and tested with Emscripten 6.0.10), CMake ≥ 3.16 and Ninja or Make.
+raylib 6.0 is downloaded by CMake, as for the desktop build.
+
+```sh
+./tools/fetch_shareware.sh            # data/id1/pak0.pak + data/shareware/{SLICNSE,LICINFO}.TXT
+source ~/emsdk/emsdk_env.sh
+emcmake cmake -S . -B build-web -G Ninja
+cmake --build build-web
+python3 -m http.server -d build-web 8000   # then open http://localhost:8000/
+```
+
+Configuring fails if `pak0.pak` is not the checksum-pinned shareware 1.06
+file (`-DQUAKE_WEB_PAK=...` points elsewhere) or the license texts are
+missing. The PAK is only ever in the build directory, never in git.
+
+`build-web/` then holds everything a web server needs:
+
+| File | What |
+|---|---|
+| `index.html` (= `quake.html`) | The page, from `web/shell.html`: canvas, loading bar, controls, credits and license links |
+| `quake.js`, `quake.wasm` | The engine (≈ 0.2 MB + 0.7 MB) |
+| `quake.data` | The unmodified shareware `pak0.pak`, preloaded into `/quake/id1/pak0.pak` (18.7 MB) |
+| `SLICNSE.TXT`, `LICINFO.TXT` | id's shareware license and distribution terms, which must accompany the PAK |
+| `gnu.txt` | The GPL v2 |
+| `.htaccess` | `application/wasm` for `.wasm`, `DirectoryIndex index.html` (Apache / LiteSpeed) |
+
+Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
+
+## How it differs from the desktop build
+
+- **Frame loop:** `main` runs `Host_Init` and then hands
+  `Sys_WebFrame` to `emscripten_set_main_loop`, which the browser calls
+  once per display frame (`requestAnimationFrame`). `Host_Frame` already
+  returns at once between its 72 Hz frames, so nothing else had to change.
+  This was chosen over ASYNCIFY, which would keep the native `while (1)`
+  loop but instruments the whole engine (larger, slower wasm) for one
+  blocking call. The only blocking wait left, `SCR_ModalMessage` (the
+  "start a new game?" question while a game is running), answers yes in
+  the browser; raylib's web `WindowShouldClose` (it sleeps) is not called.
+- **Data and saves:** `-basedir /quake`. The page mounts IndexedDB (IDBFS)
+  at `/persist`, copies its files into `/quake/id1` before the game starts,
+  and copies `config.cfg` and `*.sav` back whenever they change (checked
+  once a second from the frame loop, on quit, and when the tab is hidden).
+  The PAK is never stored in IndexedDB.
+- **Quit and errors:** `Sys_Quit` and `Sys_Error` stop the main loop and
+  call the page (`Module.quakeQuit` / `Module.quakeError`), which shows a
+  message and a "Play again" (reload) button.
+- **Audio:** the same `snd_raylib.c` DMA driver on raylib's miniaudio Web
+  Audio backend. The game starts from the "Click to play" button, so the
+  audio context is created inside a user gesture and is allowed to run.
+- **Mouse:** browsers allow pointer lock only from a user's event, so the
+  bridge tells the page when the game wants the mouse
+  (`Module.quakeWantsPointer`: playing, not in a menu, the console or a
+  demo) and the page locks it on the next click on the canvas. Motion comes
+  from the browser's `movementX/Y`. `Esc` (the browser's) lets it go.
+- **Video:** the frame is 640×480 (`-width`/`-height` still work), drawn 2×
+  into a 1280×960 canvas, which the page scales to fit, 4:3. Fullscreen is
+  the page's: the Fullscreen button or `Alt+Enter`.
+- **Network:** no sockets in a page; the build links id's `net_none.c`
+  (loopback only), so single player and demos work and multiplayer does not.
+
+Extra command-line options go in the URL: `?args=-skill%202%20%2Bmap%20e1m2`.
+
+## Testing
+
+What was checked for QUAK-25 (headless Chromium and Firefox through
+Playwright, SwiftShader WebGL): the page loads with no console errors, the
+demo loop runs after the click, the Web Audio context is `running`, Esc →
+Single Player → New Game starts `start.bsp`, moving and firing work, the
+game wants the pointer in play, `save` writes a `.sav` that reaches
+IndexedDB, `quit` shows the end screen, and after a reload `config.cfg`
+and the save are restored and `load` works. Not tested: real speakers,
+real pointer lock with a physical mouse, Safari, mobile/touch (there are no
+touch controls).
+
+## Data license
+
+The engine is GPL. The game data is not: only the unmodified shareware
+`pak0.pak` is bundled, free of charge, together with `SLICNSE.TXT` (§6 lets
+it be redistributed electronically, as a whole, free, with the agreement
+accompanying it). Registered Quake data must never go into a page.

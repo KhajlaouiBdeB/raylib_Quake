@@ -25,6 +25,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "raylib.h"
 #include "bridge_raylib.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+
+// The browser build: the page (web/shell.html) sizes the canvas, owns
+// fullscreen and asks for pointer lock on a click, since browsers allow
+// those only from inside a user's event handler. The game says when it
+// wants the pointer through Module.quakeWantsPointer.
+static float	webdx, webdy;
+
+// raylib only keeps the last movement of a poll; add them all up.
+static EM_BOOL WebMouseMove (int type, const EmscriptenMouseEvent *ev, void *user)
+{
+	if (EM_ASM_INT ({ return document.pointerLockElement === Module.canvas; }))
+	{
+		webdx += ev->movementX;
+		webdy += ev->movementY;
+	}
+	return 0;
+}
+
+static int WebPointerLocked (void)
+{
+	return EM_ASM_INT ({ return document.pointerLockElement === Module.canvas; });
+}
+#endif
+
 static int			windowopen;
 static int			fbwidth, fbheight;
 static Texture2D	screentex;
@@ -48,15 +75,26 @@ int RL_OpenWindow (const char *title, int width, int height,
 
 	// HIGHDPI gives a Retina (macOS) or scaled (Wayland) window a framebuffer
 	// of real pixels; sizes and mouse positions stay in window units.
+#ifdef __EMSCRIPTEN__
+	// The canvas keeps the size given here and the page scales it; frames
+	// come with the display's refresh, so there is no vsync to ask for.
+	SetConfigFlags (0);
+#else
 	SetConfigFlags (FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI
 		| (vsync ? FLAG_VSYNC_HINT : 0));
+#endif
 	InitWindow (winwidth, winheight, title);
 	if (!IsWindowReady ())
 		return 0;
 
 	// Esc is Quake's menu key, not a quit key.
 	SetExitKey (KEY_NULL);
+#ifdef __EMSCRIPTEN__
+	emscripten_set_mousemove_callback (EMSCRIPTEN_EVENT_TARGET_DOCUMENT,
+		NULL, 0, WebMouseMove);
+#else
 	SetWindowMinSize (320, 200);
+#endif
 
 	fbwidth = width;
 	fbheight = height;
@@ -147,13 +185,20 @@ void RL_Present (const unsigned *rgba, int integer, int linear)
 
 int RL_IsFullscreen (void)
 {
+#ifdef __EMSCRIPTEN__
+	return 0;	// the page's business, see above
+#else
 	return windowopen && IsWindowState (FLAG_BORDERLESS_WINDOWED_MODE);
+#endif
 }
 
 // Borderless fullscreen on the current monitor: no video mode change, so
 // Alt+Tab and the desktop keep working.
 void RL_SetFullscreen (int fullscreen)
 {
+#ifdef __EMSCRIPTEN__
+	return;
+#endif
 	if (!windowopen || !fullscreen == !RL_IsFullscreen ())
 		return;
 	ToggleBorderlessWindowed ();
@@ -161,6 +206,9 @@ void RL_SetFullscreen (int fullscreen)
 
 void RL_SetVsync (int vsync)
 {
+#ifdef __EMSCRIPTEN__
+	return;
+#endif
 	if (!windowopen || !vsync == !IsWindowState (FLAG_VSYNC_HINT))
 		return;
 	if (vsync)
@@ -260,7 +308,9 @@ static unsigned char	swallowed[MAXRLKEYS];
 
 static int		mousewanted;
 static int		mousegrabbed;
+#ifndef __EMSCRIPTEN__
 static Vector2	lastmouse;
+#endif
 static float	mousedx, mousedy;
 static int		mousebuttons;
 static const int	rlbuttons[3] =
@@ -351,6 +401,7 @@ static void ReadPoll (void)
 			|| IsKeyDown (KEY_LEFT_SUPER) || IsKeyDown (KEY_RIGHT_SUPER)))
 		{
 			// Alt+Enter (Option+Enter, Cmd+Enter on a Mac) toggles fullscreen and is not passed on.
+			// (In a browser the page does it, from the key event.)
 			RL_SetFullscreen (!RL_IsFullscreen ());
 			if (!rlkeydown[key])
 			{
@@ -397,12 +448,19 @@ static void ReadPoll (void)
 	{
 		Vector2		pos;
 
+#ifdef __EMSCRIPTEN__
+		(void)pos;
+		mousedx += webdx;
+		mousedy += webdy;
+		webdx = webdy = 0;
+#else
 		// GetMouseDelta only covers the last poll; with the cursor
 		// disabled the position is unbounded, so track it ourselves.
 		pos = GetMousePosition ();
 		mousedx += pos.x - lastmouse.x;
 		mousedy += pos.y - lastmouse.y;
 		lastmouse = pos;
+#endif
 
 		wheel += GetMouseWheelMove ();
 
@@ -433,9 +491,13 @@ static void ReadPoll (void)
 		wheel += 1.0f;
 	}
 
-	// raylib reports a close request until the next poll only.
+	// raylib reports a close request until the next poll only. A page has
+	// no close button (and raylib's web WindowShouldClose sleeps, which
+	// only works with ASYNCIFY).
+#ifndef __EMSCRIPTEN__
 	if (WindowShouldClose ())
 		quitrequested = 1;
+#endif
 }
 
 static void UpdateGrab (void)
@@ -443,7 +505,18 @@ static void UpdateGrab (void)
 	int		grab;
 	int		i;
 
+#ifdef __EMSCRIPTEN__
+	// The page captures the pointer on a click while the game wants it;
+	// Esc (the browser's own) lets it go, and a click takes it again.
+	EM_ASM ({
+		Module.quakeWantsPointer = $0;
+		if (!$0 && document.pointerLockElement === Module.canvas)
+			document.exitPointerLock ();
+	}, mousewanted);
+	grab = mousewanted && WebPointerLocked ();
+#else
 	grab = mousewanted && IsWindowFocused ();
+#endif
 	if (grab == mousegrabbed)
 		return;
 
@@ -451,14 +524,20 @@ static void UpdateGrab (void)
 #ifdef IN_RAYLIB_KEYLOG
 	printf ("keylog: pointer %s\n", grab ? "captured" : "released");
 #endif
+#ifdef __EMSCRIPTEN__
+	webdx = webdy = 0;
+#else
 	if (grab)
 		DisableCursor ();	// relative, raw (unaccelerated) motion
 	else
 		EnableCursor ();
+#endif
 
 	// Moving the cursor around is not player movement, and buttons
 	// held when the grab ends are released.
+#ifndef __EMSCRIPTEN__
 	lastmouse = GetMousePosition ();
+#endif
 	mousedx = mousedy = 0;
 	wheel = 0;
 	for (i = 0; i < 3; i++)

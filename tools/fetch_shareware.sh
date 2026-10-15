@@ -3,6 +3,11 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 destination="$root/data/id1/pak0.pak"
+# The shareware license texts, which must accompany the PAK when it is
+# redistributed (the browser build ships them).
+licenses="$root/data/shareware"
+license_files=(SLICNSE.TXT LICINFO.TXT)
+have_licenses() { for f in "${license_files[@]}"; do [[ -s "$licenses/$f" ]] || return 1; done; }
 archive_sha=ec6c9d34b1ae0252ac0066045b6611a7919c2a0d78a3a66d9387a8f597553239
 pak_sha=35a9c55e5e5a284a159ad2a62e0e8def23d829561fe2f54eb402dbc0a9a946af
 # macOS has no GNU sha256sum (BSD sha256sum lacks --check) and Homebrew installs 7-Zip as 7zz.
@@ -18,7 +23,7 @@ mkdir -p "$root/data/id1"
 if [[ -e "$destination" ]]; then
     check "$pak_sha" "$destination" || { echo 'FAIL: existing pak0.pak checksum mismatch; refusing to overwrite' >&2; exit 1; }
     echo "PASS: existing shareware pak0.pak SHA256 $pak_sha"
-    exit 0
+    have_licenses && exit 0
 fi
 work=$(mktemp -d "$root/data/fetch.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
@@ -29,7 +34,16 @@ check "$archive_sha" "$work/quake106.zip" || { echo 'FAIL: quake106.zip checksum
 echo "PASS: quake106.zip SHA256 $archive_sha"
 unzip -p "$work/quake106.zip" resource.1 > "$work/resource.1"
 # resource.1 is a DOS self-extracting LZH; do not execute its DOS code.
-"$sevenz" e -so "$work/resource.1" ID1/PAK0.PAK > "$work/pak0.pak"
-check "$pak_sha" "$work/pak0.pak" || { echo 'FAIL: extracted pak0.pak checksum mismatch' >&2; exit 1; }
-mv -- "$work/pak0.pak" "$destination"
-echo "PASS: installed data/id1/pak0.pak SHA256 $pak_sha"
+mkdir -p "$licenses"
+for f in "${license_files[@]}"; do
+    "$sevenz" e -so "$work/resource.1" "$f" > "$work/$f"
+    [[ -s "$work/$f" ]] || { echo "FAIL: $f not found in the archive" >&2; exit 1; }
+    mv -- "$work/$f" "$licenses/$f"
+done
+echo "PASS: installed data/shareware/${license_files[*]}"
+if [[ ! -e "$destination" ]]; then
+    "$sevenz" e -so "$work/resource.1" ID1/PAK0.PAK > "$work/pak0.pak"
+    check "$pak_sha" "$work/pak0.pak" || { echo 'FAIL: extracted pak0.pak checksum mismatch' >&2; exit 1; }
+    mv -- "$work/pak0.pak" "$destination"
+    echo "PASS: installed data/id1/pak0.pak SHA256 $pak_sha"
+fi

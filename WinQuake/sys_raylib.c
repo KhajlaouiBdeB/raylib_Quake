@@ -40,6 +40,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <mach-o/dyld.h>
 #include <limits.h>
 #endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "quakedef.h"
 
@@ -281,6 +284,13 @@ void Sys_Error (char *error, ...)
 		inerror = true;
 		Host_Shutdown ();	// closes the window too
 	}
+#ifdef __EMSCRIPTEN__
+	// The page shows the message and offers a reload.
+	emscripten_cancel_main_loop ();
+	EM_ASM ({ if (Module.quakeError) Module.quakeError (UTF8ToString ($0)); },
+		string);
+	emscripten_force_exit (1);
+#endif
 	exit (1);
 }
 
@@ -312,6 +322,12 @@ void Sys_Quit (void)
 {
 	Host_Shutdown ();
 	fflush (stdout);
+#ifdef __EMSCRIPTEN__
+	// config.cfg was just written; the page saves it and offers a reload.
+	emscripten_cancel_main_loop ();
+	EM_ASM ({ if (Module.quakeQuit) Module.quakeQuit (); });
+	emscripten_force_exit (0);
+#endif
 	exit (0);
 }
 
@@ -434,6 +450,40 @@ static const char *DefaultBaseDir (void)
 }
 #endif
 
+#ifdef __EMSCRIPTEN__
+static double	frame_oldtime;
+
+// One browser frame (requestAnimationFrame, so at the display's rate). The
+// native loop below waits for the next host frame; here the browser does
+// the waiting, and Host_Frame runs once per call. Host_Frame holds the game
+// at 72 frames a second and returns at once in between, as before.
+static void Sys_WebFrame (void)
+{
+	double	newtime, time;
+
+	newtime = Sys_FloatTime ();
+	time = newtime - frame_oldtime;
+	if (time > sys_ticrate.value*2)
+		frame_oldtime = newtime;
+	else
+		frame_oldtime += time;
+
+	Host_Frame (time);
+
+	// The page saves config.cfg and saved games to IndexedDB when they
+	// change; tell it at most once a second that it may look.
+	{
+		static double	lastsync;
+
+		if (newtime - lastsync > 1.0)
+		{
+			lastsync = newtime;
+			EM_ASM ({ if (Module.quakeSyncFiles) Module.quakeSyncFiles (); });
+		}
+	}
+}
+#endif
+
 int main (int argc, char **argv)
 {
 	quakeparms_t	parms;
@@ -461,6 +511,8 @@ int main (int argc, char **argv)
 	// -basedir is read by COM_InitFilesystem
 #ifdef __APPLE__
 	parms.basedir = (char *)DefaultBaseDir ();
+#elif defined(__EMSCRIPTEN__)
+	parms.basedir = "/quake";	// the page preloads /quake/id1/pak0.pak
 #else
 	parms.basedir = ".";
 #endif
@@ -477,6 +529,12 @@ int main (int argc, char **argv)
 	Host_Init (&parms);
 
 	Sys_Init ();
+
+#ifdef __EMSCRIPTEN__
+	// Never returns: the browser calls Sys_WebFrame on every display frame.
+	frame_oldtime = Sys_FloatTime () - 0.1;
+	emscripten_set_main_loop (Sys_WebFrame, 0, 1);
+#endif
 
 	oldtime = Sys_FloatTime () - 0.1;
 	while (1)
