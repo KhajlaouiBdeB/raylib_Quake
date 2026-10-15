@@ -270,11 +270,32 @@
   document.getElementById('full').onclick = toggleFullscreen;
 
   // Pointer lock needs a click; the game says when it wants the mouse
-  // (playing, not in the menu, console or a demo).
+  // (playing, not in the menu, console or a demo). The browser may still
+  // refuse (Chromium answers WrongDocumentError when its window does not
+  // have the system focus): say so instead of leaving an unhandled
+  // rejection with no message.
+  function pointerRefused(why) {
+    console.warn('Pointer lock refused: ' + why);
+    hint.textContent = 'The browser refused to capture the mouse ('
+                       + why + '). Click the game again.';
+  }
+  var lockpromise = false;  // the request reports its own failure
   canvas.addEventListener('mousedown', function () {
     canvas.focus();
-    if (running && Module.quakeWantsPointer && document.pointerLockElement !== canvas)
-      canvas.requestPointerLock();
+    if (running && Module.quakeWantsPointer && document.pointerLockElement !== canvas) {
+      var p = canvas.requestPointerLock();
+      lockpromise = !!(p && p.catch);
+      if (lockpromise)
+        p.catch(function (e) { pointerRefused(e && e.name || String(e)); });
+    }
+  });
+  document.addEventListener('pointerlockerror', function () {
+    if (!lockpromise)
+      pointerRefused('pointerlockerror');
+  });
+  document.addEventListener('pointerlockchange', function () {
+    if (document.pointerLockElement === canvas)
+      hint.textContent = 'Click to capture the mouse';
   });
   setInterval(function () {
     hint.classList.toggle('hidden', !(running && Module.quakeWantsPointer

@@ -62,6 +62,9 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
   (`Module.quakeWantsPointer`: playing, not in a menu, the console or a
   demo) and the page locks it on the next click on the canvas. Motion comes
   from the browser's `movementX/Y`. `Esc` (the browser's) lets it go.
+  The browser can still refuse the lock; the page then logs
+  `Pointer lock refused: <reason>` (a console warning) and says so in the
+  hint over the game, instead of leaving an unhandled promise rejection.
 - **Video:** the frame is 640×480 (`-width`/`-height` still work), drawn 2×
   into a 1280×960 canvas, which the page scales to fit, 4:3. Fullscreen is
   the page's: the Fullscreen button or `Alt+Enter`.
@@ -81,6 +84,16 @@ IndexedDB, `quit` shows the end screen, and after a reload `config.cfg`
 and the save are restored and `load` works. Not tested: real speakers,
 real pointer lock with a physical mouse, Safari, mobile/touch (there are no
 touch controls).
+
+Headed Chromium under a bare Xvfb (no window manager) sometimes refuses
+every pointer lock for the whole session with `WrongDocumentError` ("The
+root document of this element is not valid for pointer lock."): the
+browser process does not consider its window focused, although
+`document.hasFocus()` is true under Playwright's focus emulation and
+keys still arrive. QUAK-26 hit it in 15 of 18 runs of six or nine
+concurrent sessions during one window, then in none of 36 more; it never
+happened on a single session. Treat it as the test display, not the game,
+and rerun that browser alone.
 
 ## Data license
 
