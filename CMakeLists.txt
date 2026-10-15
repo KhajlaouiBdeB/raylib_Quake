@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
+
+# macOS: must be set before project(). Builds for the host architecture by
+# default; -DCMAKE_OSX_ARCHITECTURES=arm64 or =x86_64 (Intel / Rosetta) picks
+# one explicitly. Universal builds are not supported.
+if(APPLE)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+endif()
+
 project(raylib_Quake C)
+
+if(APPLE)
+  list(LENGTH CMAKE_OSX_ARCHITECTURES quake_osx_arch_count)
+  if(quake_osx_arch_count GREATER 1)
+    message(FATAL_ERROR "Universal builds are not supported; build once per "
+      "architecture: -DCMAKE_OSX_ARCHITECTURES=arm64 or x86_64")
+  endif()
+endif()
 
 # The WinQuake software renderer. With QUAKE_RAYLIB, `quake` runs with the
 # raylib video, sound, input and system drivers; `quake-null` (always built)
