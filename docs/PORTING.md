@@ -55,25 +55,23 @@ memory frame buffer into `<basedir>/id1/`, which is how the headless runs are
 checked. The shareware version refuses `-game`, so use a separate `-basedir`
 with its own `autoexec.cfg` for scripted tests.
 
-### macOS
+### macOS build
 
-Xcode Command Line Tools (`xcode-select --install`) and CMake (`brew install
-cmake`). raylib 6.0 is downloaded and linked statically, so the executables
-depend only on system frameworks (Cocoa, OpenGL, IOKit, CoreFoundation...).
-OpenGL is deprecated on macOS; raylib still uses it and CMake prints a
-developer warning about it.
+Xcode Command Line Tools (`xcode-select --install`) and CMake. raylib 6.0 is
+downloaded and linked statically, so the executables depend only on system
+frameworks (Cocoa, OpenGL, IOKit, CoreFoundation...). OpenGL is deprecated on
+macOS; raylib still uses it and CMake prints a developer warning about it.
+See the README for the full build and game-data steps.
 
 ```sh
-cmake -S . -B build && cmake --build build      # host architecture
+cmake -S . -B build && cmake --build build                    # host architecture
 cmake -S . -B build-x86_64 -DCMAKE_OSX_ARCHITECTURES=x86_64   # Intel / Rosetta
-tools/fetch_shareware.sh                        # needs: brew install sevenzip
-build/quake -basedir data
-build/quake-null -dedicated -basedir data +map start   # headless server
+build/quake-null -dedicated -basedir data +map start          # headless server
 ```
 
 `CMAKE_OSX_DEPLOYMENT_TARGET` defaults to 11.0 (the first arm64 release).
-Pick one architecture per build tree; universal binaries are rejected.
-`tools/fetch_shareware.sh` uses `shasum -a 256` and `7zz`/`7z`/`7za`.
+Pick one architecture per build tree: universal binaries are rejected at
+configure time. `otool -L` on the executables lists only system libraries.
 
 ## Source layout
 
@@ -353,3 +351,13 @@ running under AddressSanitizer and UndefinedBehaviorSanitizer.
   loose `quake.rc` in the same directory) runs `startdemos` again while
   demo1 is playing, and the stock engine then stops the loop after demo1.
   Without `+startdemos`, the attract loop plays demo1, demo2 and demo3.
+
+## macOS notes (QUAK-14)
+
+- Built and linked on Apple Silicon (arm64, Apple Clang) with the FetchContent raylib 6.0; no project warnings.
+- **Retina**: the window is opened with `FLAG_WINDOW_HIGHDPI`, so the frame is drawn at device-pixel resolution. `vid_integerscale` counts whole *device* pixels (2x on a Retina screen = 1 window unit per frame pixel).
+- **Fullscreen**: Alt+Enter (Option+Enter) and Cmd+Enter toggle borderless fullscreen.
+- **Data and save paths**: with no `-basedir`, the driver uses the current directory if it has `id1/`, then the executable's directory, then `../Resources` (app bundle), then `~/Library/Application Support/raylib_Quake` (created with an empty `id1/` so config.cfg and saves have a home).
+- **Case-insensitive lookup**: `Sys_FileOpenRead`/`Sys_FileTime` retry a missing path ignoring case per component, so `ID1/PAK0.PAK` works on case-sensitive APFS volumes (checked on a case-sensitive APFS disk image).
+- `SIGPIPE` is ignored.
+- Not tested on a real Retina display with game data (no pak0.pak on this host): HiDPI scaling and mouse feel are unverified. Cocoa is known to swallow key-up events for keys released while Cmd is held; Quake does not use Cmd.

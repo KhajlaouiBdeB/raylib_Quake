@@ -35,6 +35,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <dirent.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <limits.h>
+#endif
 
 #include "quakedef.h"
 
@@ -80,6 +85,81 @@ static int filelength (FILE *f)
 	return (int)end;
 }
 
+// Finds path ignoring the case of each component, for case-sensitive
+// volumes (a case-sensitive APFS volume, an external disk) holding data
+// named PAK0.PAK or ID1. Returns 1 and fills out if something matched.
+static int FindCaseInsensitive (const char *path, char *out, int outsize)
+{
+	char			work[MAX_OSPATH];
+	char			cur[MAX_OSPATH];
+	char			*part, *next;
+	DIR				*dir;
+	struct dirent	*de;
+	int				found;
+
+	if (strlen (path) >= sizeof(work))
+		return 0;
+	strcpy (work, path);
+
+	cur[0] = 0;
+	if (work[0] == '/')
+	{
+		strcpy (cur, "/");
+		part = work + 1;
+	}
+	else
+		part = work;
+
+	while (*part)
+	{
+		next = strchr (part, '/');
+		if (next)
+			*next++ = 0;
+		if (*part)
+		{
+			dir = opendir (cur[0] ? cur : ".");
+			if (!dir)
+				return 0;
+			found = 0;
+			while ((de = readdir (dir)) != NULL)
+			{
+				if (!strcasecmp (de->d_name, part))
+				{
+					if (strlen (cur) + strlen (de->d_name) + 2 > sizeof(cur))
+						break;
+					if (cur[0] && cur[strlen (cur) - 1] != '/')
+						strcat (cur, "/");
+					strcat (cur, de->d_name);
+					found = 1;
+					break;
+				}
+			}
+			closedir (dir);
+			if (!found)
+				return 0;
+		}
+		if (!next)
+			break;
+		part = next;
+	}
+
+	if (strlen (cur) >= (size_t)outsize)
+		return 0;
+	strcpy (out, cur);
+	return 1;
+}
+
+static FILE *OpenReadFile (const char *path)
+{
+	FILE	*f;
+	char	fixed[MAX_OSPATH];
+
+	f = fopen (path, "rb");
+	if (!f && errno == ENOENT && FindCaseInsensitive (path, fixed, sizeof(fixed)))
+		f = fopen (fixed, "rb");
+	return f;
+}
+
 int Sys_FileOpenRead (char *path, int *hndl)
 {
 	FILE	*f;
@@ -87,7 +167,7 @@ int Sys_FileOpenRead (char *path, int *hndl)
 
 	i = findhandle ();
 
-	f = fopen (path, "rb");
+	f = OpenReadFile (path);
 	if (!f)
 	{
 		*hndl = -1;
@@ -140,9 +220,14 @@ int Sys_FileWrite (int handle, void *data, int count)
 int Sys_FileTime (char *path)
 {
 	struct stat	buf;
+	char		fixed[MAX_OSPATH];
 
 	if (stat (path, &buf) == -1)
-		return -1;
+	{
+		if (errno != ENOENT || !FindCaseInsensitive (path, fixed, sizeof(fixed))
+			|| stat (fixed, &buf) == -1)
+			return -1;
+	}
 
 	return (int)buf.st_mtime;
 }
@@ -291,6 +376,64 @@ void Sys_LowFPPrecision (void)
 
 //=============================================================================
 
+#ifdef __APPLE__
+static int HasGameData (const char *dir)
+{
+	char	path[MAX_OSPATH];
+	struct stat	st;
+
+	snprintf (path, sizeof(path), "%s/id1", dir);
+	return stat (path, &st) == 0 && S_ISDIR (st.st_mode);
+}
+
+// Where the game data is when -basedir isn't given: the current directory
+// (terminal use), next to the executable or inside an app bundle's
+// Resources (double click, where the current directory is "/"), then
+// ~/Library/Application Support/raylib_Quake. The last is also where an
+// empty id1 is made on a first run, so saves and config.cfg have a home.
+static const char *DefaultBaseDir (void)
+{
+	static char	dir[MAX_OSPATH];
+	char		exe[PATH_MAX];
+	uint32_t	size = sizeof(exe);
+	char		*slash;
+	const char	*home;
+
+	if (HasGameData ("."))
+		return ".";
+
+	if (_NSGetExecutablePath (exe, &size) == 0 && (slash = strrchr (exe, '/')))
+	{
+		*slash = 0;
+		if (HasGameData (exe))
+		{
+			snprintf (dir, sizeof(dir), "%s", exe);
+			return dir;
+		}
+		snprintf (dir, sizeof(dir), "%s/../Resources", exe);
+		if (HasGameData (dir))
+			return dir;
+	}
+
+	home = getenv ("HOME");
+	if (home)
+	{
+		snprintf (dir, sizeof(dir), "%s/Library", home);
+		mkdir (dir, 0777);
+		snprintf (dir, sizeof(dir), "%s/Library/Application Support", home);
+		mkdir (dir, 0777);
+		snprintf (dir, sizeof(dir), "%s/Library/Application Support/raylib_Quake", home);
+		mkdir (dir, 0777);
+		strcat (dir, "/id1");
+		mkdir (dir, 0777);
+		dir[strlen (dir) - 4] = 0;
+		return dir;
+	}
+
+	return ".";
+}
+#endif
+
 int main (int argc, char **argv)
 {
 	quakeparms_t	parms;
@@ -299,6 +442,7 @@ int main (int argc, char **argv)
 	int				j;
 
 	signal (SIGFPE, SIG_IGN);
+	signal (SIGPIPE, SIG_IGN);	// a closed pipe on stdout or a socket
 
 	memset (&parms, 0, sizeof(parms));
 
@@ -315,7 +459,11 @@ int main (int argc, char **argv)
 		Sys_Error ("Not enough memory free; check disk space\n");
 
 	// -basedir is read by COM_InitFilesystem
+#ifdef __APPLE__
+	parms.basedir = (char *)DefaultBaseDir ();
+#else
 	parms.basedir = ".";
+#endif
 // caching is disabled by default, use -cachedir to enable
 
 	isDedicated = COM_CheckParm ("-dedicated") != 0;

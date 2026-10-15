@@ -46,7 +46,10 @@ int RL_OpenWindow (const char *title, int width, int height,
 
 	SetTraceLogLevel (LOG_WARNING);
 
-	SetConfigFlags (FLAG_WINDOW_RESIZABLE | (vsync ? FLAG_VSYNC_HINT : 0));
+	// HIGHDPI gives a Retina (macOS) or scaled (Wayland) window a framebuffer
+	// of real pixels; sizes and mouse positions stay in window units.
+	SetConfigFlags (FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI
+		| (vsync ? FLAG_VSYNC_HINT : 0));
 	InitWindow (winwidth, winheight, title);
 	if (!IsWindowReady ())
 		return 0;
@@ -89,7 +92,7 @@ int RL_WindowOpen (void)
 void RL_Present (const unsigned *rgba, int integer, int linear)
 {
 	float		winw, winh;
-	float		scale;
+	float		scale, dpi;
 	Rectangle	src, dst;
 
 	if (!windowopen)
@@ -110,14 +113,31 @@ void RL_Present (const unsigned *rgba, int integer, int linear)
 	scale = winw / fbwidth;
 	if (winh / fbheight < scale)
 		scale = winh / fbheight;
-	if (integer && scale >= 1.0f)
-		scale = (float)(int)scale;
+	if (integer)
+	{
+		// whole multiples of device pixels, not window units: 2x on a
+		// Retina screen is 1 window unit per frame pixel
+		dpi = GetWindowScaleDPI ().x;
+		if (dpi < 1.0f)
+			dpi = 1.0f;
+		if (scale * dpi >= 1.0f)
+			scale = (float)(int)(scale * dpi) / dpi;
+	}
 
 	src = (Rectangle) { 0, 0, (float)fbwidth, (float)fbheight };
 	dst.width = fbwidth * scale;
 	dst.height = fbheight * scale;
-	dst.x = (float)(int)((winw - dst.width) / 2);
-	dst.y = (float)(int)((winh - dst.height) / 2);
+	dst.x = (winw - dst.width) / 2;
+	dst.y = (winh - dst.height) / 2;
+	if (integer)
+	{
+		// start on a device pixel so the texels stay square
+		dpi = GetWindowScaleDPI ().x;
+		if (dpi < 1.0f)
+			dpi = 1.0f;
+		dst.x = (float)(int)(dst.x * dpi) / dpi;
+		dst.y = (float)(int)(dst.y * dpi) / dpi;
+	}
 
 	BeginDrawing ();
 	ClearBackground (BLACK);
@@ -327,9 +347,10 @@ static void ReadPoll (void)
 			continue;
 
 		if ((key == KEY_ENTER || key == KEY_KP_ENTER)
-			&& (IsKeyDown (KEY_LEFT_ALT) || IsKeyDown (KEY_RIGHT_ALT)))
+			&& (IsKeyDown (KEY_LEFT_ALT) || IsKeyDown (KEY_RIGHT_ALT)
+			|| IsKeyDown (KEY_LEFT_SUPER) || IsKeyDown (KEY_RIGHT_SUPER)))
 		{
-			// Alt+Enter toggles fullscreen and is not passed on.
+			// Alt+Enter (Option+Enter, Cmd+Enter on a Mac) toggles fullscreen and is not passed on.
 			RL_SetFullscreen (!RL_IsFullscreen ());
 			if (!rlkeydown[key])
 			{

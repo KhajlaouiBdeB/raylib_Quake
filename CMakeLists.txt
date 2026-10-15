@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-# macOS: these must be set before project(). Build for the host architecture
+# macOS: this must be set before project(). Build for the host architecture
 # by default; -DCMAKE_OSX_ARCHITECTURES=arm64 or =x86_64 (Intel / Rosetta)
 # selects one explicitly. Universal builds are not supported.
 if(APPLE)
@@ -78,13 +78,12 @@ function(quake_compile_settings target)
 
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     # The code relies on signed overflow wrapping and on type punning, and
-    # assumes signed plain char (arm has unsigned char).
+    # assumes signed plain char (arm has unsigned char). -fno-common makes
+    # Quake's tentative globals definitions explicit on old compilers (it is
+    # already the default on GCC 10+ and Xcode 12+).
     target_compile_options(${target} PRIVATE
       -Wall
-      -fwrapv -fno-strict-aliasing -fsigned-char
-      # Tentative definitions in headers must not become common symbols; the
-      # large ones make the macOS linker warn about __DATA,__common alignment.
-      -fno-common
+      -fwrapv -fno-strict-aliasing -fsigned-char -fno-common
       # Errors by default from GCC 14 on; keep older compilers just as strict.
       -Werror=implicit-function-declaration
       -Werror=implicit-int
