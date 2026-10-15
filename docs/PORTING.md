@@ -55,23 +55,25 @@ memory frame buffer into `<basedir>/id1/`, which is how the headless runs are
 checked. The shareware version refuses `-game`, so use a separate `-basedir`
 with its own `autoexec.cfg` for scripted tests.
 
-### macOS build
+### macOS
 
-Xcode Command Line Tools (`xcode-select --install`) and CMake. raylib 6.0 is
-downloaded and linked statically, so the executables depend only on system
-frameworks (Cocoa, OpenGL, IOKit, CoreFoundation...). OpenGL is deprecated on
-macOS; raylib still uses it and CMake prints a developer warning about it.
-See the README for the full build and game-data steps.
+Xcode Command Line Tools (`xcode-select --install`) and CMake (`brew install
+cmake`). raylib 6.0 is downloaded and linked statically, so the executables
+depend only on system frameworks (Cocoa, OpenGL, IOKit, CoreFoundation...).
+OpenGL is deprecated on macOS; raylib still uses it and CMake prints a
+developer warning about it.
 
 ```sh
-cmake -S . -B build && cmake --build build                    # host architecture
+cmake -S . -B build && cmake --build build      # host architecture
 cmake -S . -B build-x86_64 -DCMAKE_OSX_ARCHITECTURES=x86_64   # Intel / Rosetta
-build/quake-null -dedicated -basedir data +map start          # headless server
+tools/fetch_shareware.sh                        # needs: brew install sevenzip
+build/quake -basedir data
+build/quake-null -dedicated -basedir data +map start   # headless server
 ```
 
 `CMAKE_OSX_DEPLOYMENT_TARGET` defaults to 11.0 (the first arm64 release).
-Pick one architecture per build tree: universal binaries are rejected at
-configure time. `otool -L` on the executables lists only system libraries.
+Pick one architecture per build tree; universal binaries are rejected.
+`tools/fetch_shareware.sh` works with the macOS `shasum` and `7zz`/`7z`/`7za`.
 
 ## Source layout
 

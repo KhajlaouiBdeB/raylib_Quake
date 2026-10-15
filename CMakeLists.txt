@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-# macOS: this must be set before project(). Build for the host architecture
-# by default; -DCMAKE_OSX_ARCHITECTURES=arm64 or =x86_64 (Intel / Rosetta)
-# selects one explicitly. Universal builds are not supported.
+# macOS: must be set before project(). Builds for the host architecture by
+# default; -DCMAKE_OSX_ARCHITECTURES=arm64 or =x86_64 (Intel / Rosetta) picks
+# one explicitly. Universal builds are not supported.
 if(APPLE)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 endif()
