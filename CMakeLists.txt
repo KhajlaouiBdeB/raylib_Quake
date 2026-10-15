@@ -65,7 +65,7 @@ function(quake_compile_settings target)
     # assumes signed plain char (arm has unsigned char).
     target_compile_options(${target} PRIVATE
       -Wall
-      -fwrapv -fno-strict-aliasing -fsigned-char
+      -fwrapv -fno-strict-aliasing -fsigned-char -fno-common
       # Errors by default from GCC 14 on; keep older compilers just as strict.
       -Werror=implicit-function-declaration
       -Werror=implicit-int
