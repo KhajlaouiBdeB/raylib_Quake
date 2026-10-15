@@ -22,3 +22,6 @@ __pycache__/
 *.sav
 *.wav
 config.cfg
+
+# Browser touch test output (scripts/web_touch.mjs)
+/web-touch/

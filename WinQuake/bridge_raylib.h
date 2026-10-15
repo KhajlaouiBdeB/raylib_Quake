@@ -89,6 +89,9 @@ enum
 	RLK_MOUSE3,
 	RLK_MWHEELUP,
 	RLK_MWHEELDOWN,
+	RLK_TOUCH_FIRE,		// the web page's touch buttons (RL_WebTouch)
+	RLK_TOUCH_JUMP,
+	RLK_TOUCH_NEXTWEAPON,
 
 	RLK_NUMCODES
 };
@@ -114,5 +117,16 @@ void RL_SetMouseGrab (int grab);
 
 // Mouse motion in pixels while captured, summed since the last call.
 void RL_GetMouseMotion (float *dx, float *dy);
+
+// Whether the player is in the game (not a menu, the console or a demo).
+// The browser build tells the page, which shows its play or its menu touch
+// controls; elsewhere it does nothing.
+void RL_SetPlaying (int playing);
+
+// The browser's touch controls since the last call: the stick (side and
+// forward, -1 to 1, forward and right positive) and the look drag in mouse
+// counts. Returns 0 if the page never sent a touch. Buttons arrive as key
+// events. Always 0 outside the browser build.
+int RL_GetTouchMove (float *side, float *forward, float *dx, float *dy);
 
 #endif

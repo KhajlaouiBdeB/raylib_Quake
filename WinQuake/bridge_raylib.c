@@ -586,3 +586,109 @@ void RL_GetMouseMotion (float *dx, float *dy)
 	*dy = mousedy;
 	mousedx = mousedy = 0;
 }
+
+/*
+=============================================================================
+
+BROWSER TOUCH CONTROLS
+
+=============================================================================
+*/
+
+#ifdef __EMSCRIPTEN__
+// The page's touch buttons, one RL_WebTouch bit each, in bit order
+// (web/shell.html has the same list).
+static const int	touchcodes[] =
+{
+	RLK_TOUCH_FIRE,			// 0x001
+	RLK_TOUCH_JUMP,			// 0x002
+	RLK_TOUCH_NEXTWEAPON,	// 0x004
+	RLK_ESCAPE,				// 0x008
+	RLK_ENTER,				// 0x010
+	'y',					// 0x020
+	'n',					// 0x040
+	RLK_UP,					// 0x080
+	RLK_DOWN,				// 0x100
+	RLK_LEFT,				// 0x200
+	RLK_RIGHT,				// 0x400
+	'`',					// 0x800, the console
+};
+
+#define NUMTOUCHCODES	(int)(sizeof(touchcodes) / sizeof(touchcodes[0]))
+
+static int		touchused;
+static int		touchbits;
+static float	touchside, touchforward;
+static float	touchdx, touchdy;
+static int		playingsent = -1;
+
+// Called by the page on every touch change: the buttons held, the stick
+// (-1000 to 1000 each way, screen directions: y is down) and the look drag
+// since the last call, in mouse counts. A button going down or up is a key
+// event, queued with the keyboard's.
+EMSCRIPTEN_KEEPALIVE void RL_WebTouch (int bits, int stickx, int sticky,
+	int dx, int dy)
+{
+	int		i;
+	int		bit;
+
+	touchused = 1;
+	for (i = 0; i < NUMTOUCHCODES; i++)
+	{
+		bit = 1 << i;
+		if ((bits ^ touchbits) & bit)
+			PostEvent (touchcodes[i], (bits & bit) != 0);
+	}
+	touchbits = bits;
+	touchside = stickx / 1000.0f;
+	touchforward = -sticky / 1000.0f;
+	touchdx += dx;
+	touchdy += dy;
+}
+
+// A key typed on the phone's keyboard (console, player name): a press and a
+// release, queued behind the other key events, so a whole word typed
+// between two frames arrives in order. ASCII; 8 is Backspace.
+EMSCRIPTEN_KEEPALIVE void RL_WebTouchKey (int key)
+{
+	if (key == 8)
+		key = RLK_BACKSPACE;
+	if (key != RLK_ENTER && key != RLK_ESCAPE && key != RLK_BACKSPACE
+		&& (key < 32 || key > 126))
+		return;
+	touchused = 1;
+	PostEvent (key, 1);
+	PostEvent (key, 0);
+}
+#endif
+
+void RL_SetPlaying (int playing)
+{
+#ifdef __EMSCRIPTEN__
+	if (playing == playingsent)
+		return;
+	playingsent = playing;
+	EM_ASM ({
+		Module.quakePlaying = $0;
+		if (Module.quakeOnPlaying)
+			Module.quakeOnPlaying ($0);
+	}, playing);
+#else
+	(void)playing;
+#endif
+}
+
+int RL_GetTouchMove (float *side, float *forward, float *dx, float *dy)
+{
+#ifdef __EMSCRIPTEN__
+	*side = touchside;
+	*forward = touchforward;
+	*dx = touchdx;
+	*dy = touchdy;
+	touchdx = touchdy = 0;
+	return touchused;
+#else
+	*side = *forward = *dx = *dy = 0;
+	return 0;
+#endif
+}

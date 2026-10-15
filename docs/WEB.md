@@ -65,6 +65,38 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
   The browser can still refuse the lock; the page then logs
   `Pointer lock refused: <reason>` (a console warning) and says so in the
   hint over the game, instead of leaving an unhandled promise rejection.
+- **Touch:** on devices whose main pointer is a finger
+  (`matchMedia('(pointer: coarse)')`; `?touch=1` / `?touch=0` force it on
+  or off) the page puts touch controls over the game, which then fills the
+  screen (landscape; a hint asks to turn the device in portrait; the
+  controls keep clear of `env(safe-area-inset-*)`). The game tells the page
+  which layout to show (`Module.quakePlaying`, set by `RL_SetPlaying` from
+  `in_raylib.c`, the same test as for the mouse):
+  - *play:* a stick wherever the left thumb lands (half way walks, the rim
+    runs), drag on the right half to look (yaw and pitch, through
+    `sensitivity`, `m_yaw`, `m_pitch`, no lookspring), FIRE, JUMP, WPN
+    (next weapon), MENU;
+  - *menu* (menus, console, demos): arrows, OK (Enter), BACK (Esc), Y, N,
+    a tap on the picture is Enter, a swipe moves the cursor, and ⌨ opens
+    the phone's keyboard (console, player name). `&console=1` adds a
+    console button.
+
+  The page calls two exports in `bridge_raylib.c`:
+  `RL_WebTouch(bits, stickx, sticky, lookdx, lookdy)` and
+  `RL_WebTouchKey(ascii)`. Button bits become key events in the bridge's
+  queue: menu buttons are Esc, Enter, Y, N and the arrows; FIRE, JUMP and
+  WPN are the otherwise unused `AUX1`–`AUX3` keys, bound to `+attack`,
+  `+jump` and `impulse 10` the first time they are pressed unbound
+  (default.cfg's `unbindall` clears them; Customize controls can rebind
+  them), so they work whatever the keyboard is bound to. The stick and the
+  look drag go to `IN_Move` (`RL_GetTouchMove`). Typed characters are a
+  press and a release each, queued in order. Touches are taken in the
+  document's capture phase and their default prevented, so raylib (GLFW)
+  never sees them as mouse clicks and a finger never asks for pointer
+  lock; touchend also resumes miniaudio's context (the game itself starts
+  from the Play tap, a user gesture). The hidden text input's keys are
+  stopped before GLFW's window-capture key listener. The desktop is
+  unchanged: no overlay, the same keyboard, mouse and pointer lock.
 - **Video:** the frame is 640×480 (`-width`/`-height` still work), drawn 2×
   into a 1280×960 canvas, which the page scales to fit, 4:3. Fullscreen is
   the page's: the Fullscreen button or `Alt+Enter`.
@@ -82,8 +114,27 @@ Single Player → New Game starts `start.bsp`, moving and firing work, the
 game wants the pointer in play, `save` writes a `.sav` that reaches
 IndexedDB, `quit` shows the end screen, and after a reload `config.cfg`
 and the save are restored and `load` works. Not tested: real speakers,
-real pointer lock with a physical mouse, Safari, mobile/touch (there are no
-touch controls).
+real pointer lock with a physical mouse, Safari.
+
+Touch (QUAK-31): `scripts/web_touch.mjs` (Playwright, headless Chromium,
+Pixel 7 and iPhone 14 landscape emulation with real touch events through
+CDP `Input.dispatchTouchEvent`, plus a desktop run):
+
+```sh
+node scripts/web_touch.mjs build-web web-touch [--only pixel7|iphone14|desktop]
+# PLAYWRIGHT=/path/to/node_modules/playwright/index.mjs if not the default
+```
+
+On each phone, by touch only: the overlay turns on by itself, the audio
+context runs, title → New Game (start map) → E1M1 (typed into the
+console on the phone keyboard), save, move with the stick while firing,
+look (yaw and pitch), jump, next weapon, save, load the first save and
+check it came back, menu open/close, the portrait hint, and no pointer
+lock request. Game state is read from the save files (origin, `v_angle`,
+shells, weapon). Desktop: no overlay, keyboard play, pointer lock on a
+click, mouse look, and `?touch=1` shows the overlay. Screenshots,
+`result.json` and the console log go to the output directory. Emulation
+is not a phone: real iOS Safari and Android Chrome are untested.
 
 Headed Chromium under a bare Xvfb (no window manager) sometimes refuses
 every pointer lock for the whole session with `WrongDocumentError` ("The
