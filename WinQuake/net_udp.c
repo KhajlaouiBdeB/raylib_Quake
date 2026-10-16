@@ -65,7 +65,14 @@ int UDP_Init (void)
 	// determine my name & address
 	gethostname(buff, MAXHOSTNAMELEN);
 	local = gethostbyname(buff);
-	myAddr = *(int *)local->h_addr_list[0];
+	if (local && local->h_addr_list[0] && local->h_length == sizeof(myAddr))
+		memcpy(&myAddr, local->h_addr_list[0], sizeof(myAddr));
+	else
+	{
+		// hostname doesn't resolve (offline, odd mDNS, Rosetta): use loopback
+		Con_Printf("UDP_Init: unable to resolve host name, using 127.0.0.1\n");
+		myAddr = htonl(INADDR_LOOPBACK);
+	}
 
 	// if the quake hostname isn't set, set it to the machine name
 	if (Q_strcmp(hostname.string, "UNNAMED") == 0)
@@ -375,7 +382,7 @@ int UDP_GetAddrFromName(char *name, struct qsockaddr *addr)
 
 	addr->sa_family = AF_INET;
 	((struct sockaddr_in *)addr)->sin_port = htons(net_hostport);	
-	((struct sockaddr_in *)addr)->sin_addr.s_addr = *(int *)hostentry->h_addr_list[0];
+	memcpy(&((struct sockaddr_in *)addr)->sin_addr.s_addr, hostentry->h_addr_list[0], sizeof(((struct sockaddr_in *)addr)->sin_addr.s_addr));
 
 	return 0;
 }
