@@ -22,6 +22,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	cvar_t		v_gamma;
 
 extern	byte		gammatable[256];	// palette is sent through this
+
+// The browser build shows the picture through a 0.7 power curve on top of
+// the gamma cvar (VID_SetPalette in vid_raylib.c, QUAK-40), so its
+// Brightness slider spans the gamma values that come out as id's 0.5 to 1.
+#ifdef __EMSCRIPTEN__
+#define	VID_DISPLAY_GAMMA	0.7
+#define	GAMMA_SLIDER_MIN	(0.5 / VID_DISPLAY_GAMMA)
+#define	GAMMA_SLIDER_MAX	(1.0 / VID_DISPLAY_GAMMA)
+#else
+#define	GAMMA_SLIDER_MIN	0.5
+#define	GAMMA_SLIDER_MAX	1.0
+#endif
 extern	byte		ramps[3][256];
 extern float v_blend[4];
 

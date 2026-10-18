@@ -60,6 +60,12 @@ void RL_SetVsync (int vsync);
 // True once the user asked to close the window (close button, WM).
 int RL_QuitRequested (void);
 
+// GLQuake (vid_glraylib.c) draws its frames itself, through rlgl, between
+// these two instead of calling RL_Present. RL_BeginGLFrame gives the size
+// of the window's framebuffer in pixels.
+void RL_BeginGLFrame (int *width, int *height);
+void RL_EndGLFrame (void);
+
 //
 // input
 //

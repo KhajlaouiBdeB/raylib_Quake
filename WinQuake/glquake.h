@@ -27,8 +27,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #endif
 
+#ifdef GLQUAKE_RAYLIB
+#include "gl_raylib.h"	// GL 1.1 on raylib's rlgl
+#else
 #include <GL/gl.h>
 #include <GL/glu.h>
+#endif
 
 void GL_BeginRendering (int *x, int *y, int *width, int *height);
 void GL_EndRendering (void);
@@ -249,3 +253,33 @@ extern qboolean gl_mtexable;
 
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
+
+// Functions GLQuake used without a prototype; an implicit declaration is
+// an error now (GCC 14 and later), and wrong on 64-bit for pointers.
+int GL_LoadPicTexture (qpic_t *pic);
+void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr);
+void GL_SubdivideSurface (msurface_t *fa);
+void GL_BuildLightmaps (void);
+void GL_Upload8_EXT (byte *data, int width, int height, qboolean mipmap, qboolean alpha);
+void GL_Set2D (void);
+qboolean VID_Is8bit (void);
+void R_DrawWaterSurfaces (void);
+void R_RenderBrushPoly (msurface_t *fa);
+void R_DrawBrushModel (entity_t *e);
+void R_DrawWorld (void);
+void R_DrawSkyChain (msurface_t *s);
+void R_RenderDlights (void);
+void R_RotateForEntity (entity_t *e);
+qboolean R_CullBox (vec3_t mins, vec3_t maxs);
+int R_LightPoint (vec3_t p);
+void R_AnimateLight (void);
+void R_MarkLights (dlight_t *light, int bit, mnode_t *node);
+void R_StoreEfrags (efrag_t **ppefrag);
+void R_InitParticles (void);
+void R_ClearParticles (void);
+void R_DrawParticles (void);
+void EmitWaterPolys (msurface_t *fa);
+void EmitSkyPolys (msurface_t *fa);
+void EmitBothSkyLayers (msurface_t *fa);
+void V_CalcBlend (void);
+void RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);

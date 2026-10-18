@@ -286,6 +286,19 @@ void RL_Present (const unsigned *rgba, int integer, int linear)
 	EndDrawing ();		// also polls input, see RL_PumpEvents
 }
 
+void RL_BeginGLFrame (int *width, int *height)
+{
+	BeginDrawing ();
+	*width = GetRenderWidth ();
+	*height = GetRenderHeight ();
+}
+
+void RL_EndGLFrame (void)
+{
+	if (windowopen)
+		EndDrawing ();		// also polls input, see RL_PumpEvents
+}
+
 int RL_IsFullscreen (void)
 {
 #ifdef __EMSCRIPTEN__

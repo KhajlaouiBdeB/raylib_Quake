@@ -65,12 +65,36 @@ void	VID_SetPalette (unsigned char *palette)
 {
 	int		i;
 	unsigned	r, g, b;
+#ifdef __EMSCRIPTEN__
+	// The browser build is shown brighter (QUAK-40): at gamma 1 the raw
+	// palette reads very dark on today's sRGB screens, about half as bright
+	// as GL ports such as netquake.io. This is a VID_DISPLAY_GAMMA (0.7)
+	// power curve, like "gamma 0.7", put on top of the gamma cvar instead
+	// of replacing it, because default.cfg sets "gamma 1.0" and every
+	// config.cfg saves it. The Brightness slider is rescaled to match (see
+	// view.h); saved values still apply. Black and white stay put. The
+	// desktop build keeps id's look.
+	static byte	bright[256];
+	static qboolean	bright_built;
+
+	if (!bright_built)
+	{
+		for (i = 0; i < 256; i++)
+			bright[i] = (int)(255 * pow (i/255.0, VID_DISPLAY_GAMMA) + 0.5);
+		bright_built = true;
+	}
+#endif
 
 	for (i = 0; i < 256; i++)
 	{
 		r = palette[i*3];
 		g = palette[i*3+1];
 		b = palette[i*3+2];
+#ifdef __EMSCRIPTEN__
+		r = bright[r];
+		g = bright[g];
+		b = bright[b];
+#endif
 		rgbatable[i] = r | (g << 8) | (b << 16) | (0xffu << 24);
 		d_8to24table[i] = r | (g << 8) | (b << 16);
 	}

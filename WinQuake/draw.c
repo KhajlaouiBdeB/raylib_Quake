@@ -839,10 +839,47 @@ Draw_FadeScreen
 
 ================
 */
+// The menu background: each color darkened to half, as the nearest color
+// in the palette (QUAK-40). id's version blacked out 3 of every 4 pixels,
+// which looks like a noisy checkerboard on today's large screens.
+#define	FADE_SCALE	0.5
+
+static byte	fadetable[256];
+static qboolean	fadetable_built;
+
+static void Draw_BuildFadeTable (void)
+{
+	int		i, j, best, bestdist, dist, dr, dg, db;
+	byte	*pal = host_basepal;
+
+	for (i=0 ; i<256 ; i++)
+	{
+		best = 0;
+		bestdist = 0x7fffffff;
+		for (j=0 ; j<256 ; j++)
+		{
+			dr = pal[j*3] - (int)(pal[i*3] * FADE_SCALE + 0.5);
+			dg = pal[j*3+1] - (int)(pal[i*3+1] * FADE_SCALE + 0.5);
+			db = pal[j*3+2] - (int)(pal[i*3+2] * FADE_SCALE + 0.5);
+			dist = dr*dr + dg*dg + db*db;
+			if (dist < bestdist)
+			{
+				bestdist = dist;
+				best = j;
+			}
+		}
+		fadetable[i] = best;
+	}
+	fadetable_built = true;
+}
+
 void Draw_FadeScreen (void)
 {
 	int			x,y;
 	byte		*pbuf;
+
+	if (!fadetable_built)
+		Draw_BuildFadeTable ();
 
 	VID_UnlockBuffer ();
 	S_ExtraUpdate ();
@@ -850,16 +887,10 @@ void Draw_FadeScreen (void)
 
 	for (y=0 ; y<vid.height ; y++)
 	{
-		int	t;
-
 		pbuf = (byte *)(vid.buffer + vid.rowbytes*y);
-		t = (y & 1) << 1;
 
 		for (x=0 ; x<vid.width ; x++)
-		{
-			if ((x & 3) != t)
-				pbuf[x] = 0;
-		}
+			pbuf[x] = fadetable[pbuf[x]];
 	}
 
 	VID_UnlockBuffer ();
