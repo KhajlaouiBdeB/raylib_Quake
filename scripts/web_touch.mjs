@@ -342,6 +342,45 @@ async function phone(key, device) {
   check(tag('MENU opens the menu, BACK closes it'), menuOpen && menuClosed);
   await sleep(300);
 
+  // Jump, at the E1M1 start: once the player stands still, the picture
+  // moves with no other input than JUMP. (Done before walking: the walk
+  // can end under a low ledge, beside a strobing light, where nothing or
+  // everything moves.)
+  await sleep(2000);
+  const a = await canvasSig(p);
+  let still = 0;
+  for (let i = 0; i < 2; i++) {
+    await sleep(200);
+    still = Math.max(still, diff(a, await canvasSig(p)));
+  }
+  // The arc lasts about 0.6 s and a screenshot of a large canvas can take
+  // longer than that: press JUMP again and again (Quake jumps once per
+  // press) for 2.4 s while sampling (single shots, blank ones skipped), so
+  // samples land inside an arc.
+  const jc = await center(p, '#tjump');
+  let jumping = true;
+  const presses = (async () => {
+    while (jumping) {
+      const jid = await f.start(jc.x, jc.y);
+      await sleep(400);
+      await f.end(jid);
+      await sleep(100);
+    }
+  })();
+  let jump = 0, samples = 0;
+  for (const end = Date.now() + 2400; Date.now() < end;) {
+    const sig = await canvasShot(p);
+    if (sig.reduce((x, y) => x + y, 0) / sig.length > 8) {
+      jump = Math.max(jump, diff(a, sig));
+      samples++;
+    }
+  }
+  jumping = false;
+  await presses;
+  check(tag('JUMP moves the view'), jump > 2 * still + 1,
+        `still ${still.toFixed(2)}, jump ${jump.toFixed(2)} (${samples} samples)`);
+  await sleep(800);
+
   // Move with the stick while firing (two fingers), then look.
   const fire = await center(p, '#tfire');
   const sx = vp.width * 0.2, sy = vp.height * 0.6;
@@ -358,30 +397,6 @@ async function phone(key, device) {
   await f.drag(look, vp.width * 0.6, vp.height * 0.5, vp.width * 0.6 + 120, vp.height * 0.5 - 40, 8, 300);
   await f.end(look);
   await sleep(400);
-
-  // Jump: once the player stands still, the picture moves with no other
-  // input than JUMP.
-  await sleep(2000);
-  const a = await canvasSig(p);
-  let still = 0;
-  for (let i = 0; i < 2; i++) {
-    await sleep(200);
-    still = Math.max(still, diff(a, await canvasSig(p)));
-  }
-  // The arc lasts about 0.6 s and a screenshot can take longer than that
-  // under load: hold JUMP and keep sampling (single shots, blank ones
-  // skipped) for a while, so samples land inside the arc.
-  const jid = await f.start(...Object.values(await center(p, '#tjump')));
-  let jump = 0;
-  for (const end = Date.now() + 900; Date.now() < end;) {
-    const sig = await canvasShot(p);
-    if (sig.reduce((x, y) => x + y, 0) / sig.length > 8)
-      jump = Math.max(jump, diff(a, sig));
-  }
-  await f.end(jid);
-  check(tag('JUMP moves the view'), jump > 2 * still + 1,
-        `still ${still.toFixed(2)}, jump ${jump.toFixed(2)}`);
-  await sleep(800);
 
   // Next weapon
   await T('#tnext');

@@ -117,9 +117,10 @@ static void VID_SetSize (int width, int height)
 
 	vid.width = vid.conwidth = width;
 	vid.height = vid.conheight = height;
-	// Square pixels on the screen; the renderer's aspect is relative to
-	// 320x240.
-	vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
+	// The frame is shown with square pixels at any size (RL_Present keeps
+	// its aspect), so don't stretch the projection for a 4:3 monitor.
+	// screen.c widens fov for wide frames (fov_adapt).
+	vid.aspect = 1.0;
 	vid.buffer = vid.conbuffer = vid_buffer;
 	vid.rowbytes = vid.conrowbytes = width;
 
