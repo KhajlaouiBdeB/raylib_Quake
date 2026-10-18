@@ -274,6 +274,8 @@ static void SCR_CalcRefdef (void)
 	vrect_t		vrect;
 	float		size;
 
+	SCR_Update2DScale ();	// vid.width/height may have just changed
+
 	scr_fullupdate = 0;		// force a background redraw
 	vid.recalc_refdef = 0;
 

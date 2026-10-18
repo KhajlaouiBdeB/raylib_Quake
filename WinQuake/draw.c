@@ -136,10 +136,12 @@ static void Draw_Scaled (int x, int y, byte *source, int width, int height,
 	int		scale, u, v, i, j, c;
 	byte	*dest, *d;
 
-	if (x < 0 || y < 0 || x + width > vid.conwidth || y + height > vid.conheight)
+	scale = scr_2dscale;
+
+	if (x < 0 || y < 0 || x + width > vid.conwidth || y + height > vid.conheight
+		|| (x + width) * scale > vid.width || (y + height) * scale > vid.height)
 		return;
 
-	scale = scr_2dscale;
 	dest = vid.buffer + y*scale*vid.rowbytes + x*scale;
 
 	for (v=0 ; v<height ; v++, source += sourcerowbytes)
@@ -179,6 +181,10 @@ static void Draw_ScaleRect (int *x, int *y, int *w, int *h)
 	*y = *y < 0 ? 0 : *y * scr_2dscale;
 	x1 = x1 >= vid.conwidth ? vid.width : x1 * scr_2dscale;
 	y1 = y1 >= vid.conheight ? vid.height : y1 * scr_2dscale;
+	if (x1 > vid.width)
+		x1 = vid.width;
+	if (y1 > vid.height)
+		y1 = vid.height;
 	*w = x1 - *x;
 	*h = y1 - *y;
 }
@@ -659,6 +665,8 @@ void Draw_ConsoleBackground (int lines)
 		width = vid.width;
 		height = vid.height;
 		lines = lines >= vid.conheight ? height : lines * scr_2dscale;
+		if (lines > height)
+			lines = height;
 	}
 
 	if (r_pixbytes == 1)
