@@ -38,6 +38,9 @@ cvar_t		scr_showram = {"showram","1"};
 cvar_t		scr_showturtle = {"showturtle","0"};
 cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
+cvar_t		scr_scale = {"scr_scale","0", true};	// 2D scale, 0 = auto
+
+int			scr_2dscale = 1;
 
 qboolean	scr_initialized;		// ready to draw
 
@@ -114,12 +117,12 @@ void SCR_EraseCenterString (void)
 	}
 
 	if (scr_center_lines <= 4)
-		y = vid.height*0.35;
+		y = vid.conheight*0.35;
 	else
 		y = 48;
 
 	scr_copytop = 1;
-	Draw_TileClear (0, y,vid.width, 8*scr_erase_lines);
+	Draw_TileClear (0, y,vid.conwidth, 8*scr_erase_lines);
 }
 
 void SCR_DrawCenterString (void)
@@ -140,7 +143,7 @@ void SCR_DrawCenterString (void)
 	start = scr_centerstring;
 
 	if (scr_center_lines <= 4)
-		y = vid.height*0.35;
+		y = vid.conheight*0.35;
 	else
 		y = 48;
 
@@ -150,7 +153,7 @@ void SCR_DrawCenterString (void)
 		for (l=0 ; l<40 ; l++)
 			if (start[l] == '\n' || !start[l])
 				break;
-		x = (vid.width - l*8)/2;
+		x = (vid.conwidth - l*8)/2;
 		for (j=0 ; j<l ; j++, x+=8)
 		{
 			Draw_Character (x, y, start[j]);	
@@ -211,6 +214,55 @@ float CalcFov (float fov_x, float width, float height)
 
 /*
 =================
+SCR_Update2DScale
+
+Picks the integer scale for the status bar, console, menus and other 2D
+drawing, and sets the 2D screen size (vid.conwidth x vid.conheight) from it.
+scr_scale 0 (auto) keeps the 2D layer about as large as on a 640 pixel wide
+screen: 1 at 640x480, 2 at 1280x720, 3 at 1920x1080. Any scale is limited
+to what leaves a 320x200 2D screen, which the menus need.
+=================
+*/
+void SCR_Update2DScale (void)
+{
+	int		scale, maxscale, size;
+
+	maxscale = vid.width / 320;
+	if (vid.height / 200 < maxscale)
+		maxscale = vid.height / 200;
+	if (maxscale < 1)
+		maxscale = 1;
+
+	if (scr_scale.value >= 1)
+		scale = (int)scr_scale.value;
+	else
+	{
+	// the narrower of the width and a 16:9 height decides, rounded
+		size = vid.width;
+		if (vid.height * 16 / 9 < size)
+			size = vid.height * 16 / 9;
+		scale = (size + 320) / 640;
+	}
+
+	if (scale > maxscale)
+		scale = maxscale;
+	if (scale < 1)
+		scale = 1;
+
+	if (scale == scr_2dscale && vid.conwidth == vid.width / scale
+		&& vid.conheight == vid.height / scale)
+		return;
+
+	if (scr_con_current)
+		scr_con_current = scr_con_current * scr_2dscale / scale;
+	scr_2dscale = scale;
+	vid.conwidth = vid.width / scale;
+	vid.conheight = vid.height / scale;
+	vid.recalc_refdef = 1;		// the status bar height changed
+}
+
+/*
+=================
 SCR_CalcRefdef
 
 Must be called whenever vid changes
@@ -265,15 +317,15 @@ static void SCR_CalcRefdef (void)
 	vrect.width = vid.width;
 	vrect.height = vid.height;
 
-	R_SetVrect (&vrect, &scr_vrect, sb_lines);
+	R_SetVrect (&vrect, &scr_vrect, sb_lines * scr_2dscale);
 
 // guard against going from one mode to another that's less than half the
 // vertical resolution
-	if (scr_con_current > vid.height)
-		scr_con_current = vid.height;
+	if (scr_con_current > vid.conheight)
+		scr_con_current = vid.conheight;
 
 // notify the refresh of the change
-	R_ViewChanged (&vrect, sb_lines, vid.aspect);
+	R_ViewChanged (&vrect, sb_lines * scr_2dscale, vid.aspect);
 }
 
 
@@ -321,6 +373,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_showpause);
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
+	Cvar_RegisterVariable (&scr_scale);
 
 //
 // register our commands
@@ -410,8 +463,8 @@ void SCR_DrawPause (void)
 		return;
 
 	pic = Draw_CachePic ("gfx/pause.lmp");
-	Draw_Pic ( (vid.width - pic->width)/2, 
-		(vid.height - 48 - pic->height)/2, pic);
+	Draw_Pic ( (vid.conwidth - pic->width)/2, 
+		(vid.conheight - 48 - pic->height)/2, pic);
 }
 
 
@@ -429,8 +482,8 @@ void SCR_DrawLoading (void)
 		return;
 		
 	pic = Draw_CachePic ("gfx/loading.lmp");
-	Draw_Pic ( (vid.width - pic->width)/2, 
-		(vid.height - 48 - pic->height)/2, pic);
+	Draw_Pic ( (vid.conwidth - pic->width)/2, 
+		(vid.conheight - 48 - pic->height)/2, pic);
 }
 
 
@@ -455,11 +508,11 @@ void SCR_SetUpToDrawConsole (void)
 
 	if (con_forcedup)
 	{
-		scr_conlines = vid.height;		// full screen
+		scr_conlines = vid.conheight;		// full screen
 		scr_con_current = scr_conlines;
 	}
 	else if (key_dest == key_console)
-		scr_conlines = vid.height/2;	// half screen
+		scr_conlines = vid.conheight/2;	// half screen
 	else
 		scr_conlines = 0;				// none visible
 	
@@ -480,13 +533,13 @@ void SCR_SetUpToDrawConsole (void)
 	if (clearconsole++ < vid.numpages)
 	{
 		scr_copytop = 1;
-		Draw_TileClear (0,(int)scr_con_current,vid.width, vid.height - (int)scr_con_current);
+		Draw_TileClear (0,(int)scr_con_current,vid.conwidth, vid.conheight - (int)scr_con_current);
 		Sbar_Changed ();
 	}
 	else if (clearnotify++ < vid.numpages)
 	{
 		scr_copytop = 1;
-		Draw_TileClear (0,0,vid.width, con_notifylines);
+		Draw_TileClear (0,0,vid.conwidth, con_notifylines);
 	}
 	else
 		con_notifylines = 0;
@@ -712,7 +765,7 @@ void SCR_DrawNotifyString (void)
 
 	start = scr_notifystring;
 
-	y = vid.height*0.35;
+	y = vid.conheight*0.35;
 
 	do	
 	{
@@ -720,7 +773,7 @@ void SCR_DrawNotifyString (void)
 		for (l=0 ; l<40 ; l++)
 			if (start[l] == '\n' || !start[l])
 				break;
-		x = (vid.width - l*8)/2;
+		x = (vid.conwidth - l*8)/2;
 		for (j=0 ; j<l ; j++, x+=8)
 			Draw_Character (x, y, start[j]);	
 			
@@ -840,6 +893,8 @@ void SCR_UpdateScreen (void)
 	if (!scr_initialized || !con_initialized)
 		return;				// not initialized yet
 
+	SCR_Update2DScale ();
+
 	if (scr_viewsize.value != oldscr_viewsize)
 	{
 		oldscr_viewsize = scr_viewsize.value;
@@ -881,7 +936,7 @@ void SCR_UpdateScreen (void)
 	if (scr_fullupdate++ < vid.numpages)
 	{	// clear the entire screen
 		scr_copyeverything = 1;
-		Draw_TileClear (0,0,vid.width,vid.height);
+		Draw_TileClear (0,0,vid.conwidth,vid.conheight);
 		Sbar_Changed ();
 	}
 
@@ -967,7 +1022,7 @@ void SCR_UpdateScreen (void)
 		vrect.x = 0;
 		vrect.y = 0;
 		vrect.width = vid.width;
-		vrect.height = vid.height - sb_lines;
+		vrect.height = vid.height - sb_lines * scr_2dscale;
 		vrect.pnext = 0;
 	
 		VID_Update (&vrect);

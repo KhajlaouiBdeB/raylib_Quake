@@ -260,9 +260,9 @@ Sbar_DrawPic
 void Sbar_DrawPic (int x, int y, qpic_t *pic)
 {
 	if (cl.gametype == GAME_DEATHMATCH)
-		Draw_Pic (x /* + ((vid.width - 320)>>1)*/, y + (vid.height-SBAR_HEIGHT), pic);
+		Draw_Pic (x /* + ((vid.conwidth - 320)>>1)*/, y + (vid.conheight-SBAR_HEIGHT), pic);
 	else
-		Draw_Pic (x + ((vid.width - 320)>>1), y + (vid.height-SBAR_HEIGHT), pic);
+		Draw_Pic (x + ((vid.conwidth - 320)>>1), y + (vid.conheight-SBAR_HEIGHT), pic);
 }
 
 /*
@@ -273,9 +273,9 @@ Sbar_DrawTransPic
 void Sbar_DrawTransPic (int x, int y, qpic_t *pic)
 {
 	if (cl.gametype == GAME_DEATHMATCH)
-		Draw_TransPic (x /*+ ((vid.width - 320)>>1)*/, y + (vid.height-SBAR_HEIGHT), pic);
+		Draw_TransPic (x /*+ ((vid.conwidth - 320)>>1)*/, y + (vid.conheight-SBAR_HEIGHT), pic);
 	else
-		Draw_TransPic (x + ((vid.width - 320)>>1), y + (vid.height-SBAR_HEIGHT), pic);
+		Draw_TransPic (x + ((vid.conwidth - 320)>>1), y + (vid.conheight-SBAR_HEIGHT), pic);
 }
 
 /*
@@ -288,9 +288,9 @@ Draws one solid graphics character
 void Sbar_DrawCharacter (int x, int y, int num)
 {
 	if (cl.gametype == GAME_DEATHMATCH)
-		Draw_Character ( x /*+ ((vid.width - 320)>>1) */ + 4 , y + vid.height-SBAR_HEIGHT, num);
+		Draw_Character ( x /*+ ((vid.conwidth - 320)>>1) */ + 4 , y + vid.conheight-SBAR_HEIGHT, num);
 	else
-		Draw_Character ( x + ((vid.width - 320)>>1) + 4 , y + vid.height-SBAR_HEIGHT, num);
+		Draw_Character ( x + ((vid.conwidth - 320)>>1) + 4 , y + vid.conheight-SBAR_HEIGHT, num);
 }
 
 /*
@@ -301,9 +301,9 @@ Sbar_DrawString
 void Sbar_DrawString (int x, int y, char *str)
 {
 	if (cl.gametype == GAME_DEATHMATCH)
-		Draw_String (x /*+ ((vid.width - 320)>>1)*/, y+ vid.height-SBAR_HEIGHT, str);
+		Draw_String (x /*+ ((vid.conwidth - 320)>>1)*/, y+ vid.conheight-SBAR_HEIGHT, str);
 	else
-		Draw_String (x + ((vid.width - 320)>>1), y+ vid.height-SBAR_HEIGHT, str);
+		Draw_String (x + ((vid.conwidth - 320)>>1), y+ vid.conheight-SBAR_HEIGHT, str);
 }
 
 /*
@@ -521,8 +521,8 @@ void Sbar_DrawScoreboard (void)
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 
-		Draw_Fill ( x*8+10 + ((vid.width - 320)>>1), y + vid.height - SBAR_HEIGHT, 28, 4, top);
-		Draw_Fill ( x*8+10 + ((vid.width - 320)>>1), y+4 + vid.height - SBAR_HEIGHT, 28, 4, bottom);
+		Draw_Fill ( x*8+10 + ((vid.conwidth - 320)>>1), y + vid.conheight - SBAR_HEIGHT, 28, 4, top);
+		Draw_Fill ( x*8+10 + ((vid.conwidth - 320)>>1), y+4 + vid.conheight - SBAR_HEIGHT, 28, 4, bottom);
 
 	// draw text
 		for (j=0 ; j<20 ; j++)
@@ -781,8 +781,8 @@ void Sbar_DrawFrags (void)
 	if (cl.gametype == GAME_DEATHMATCH)
 		xofs = 0;
 	else
-		xofs = (vid.width - 320)>>1;
-	y = vid.height - SBAR_HEIGHT - 23;
+		xofs = (vid.conwidth - 320)>>1;
+	y = vid.conheight - SBAR_HEIGHT - 23;
 
 	for (i=0 ; i<l ; i++)
 	{
@@ -851,11 +851,11 @@ void Sbar_DrawFace (void)
 		if (cl.gametype == GAME_DEATHMATCH)
 			xofs = 113;
 		else
-			xofs = ((vid.width - 320)>>1) + 113;
+			xofs = ((vid.conwidth - 320)>>1) + 113;
 
 		Sbar_DrawPic (112, 0, rsb_teambord);
-		Draw_Fill (xofs, vid.height-SBAR_HEIGHT+3, 22, 9, top);
-		Draw_Fill (xofs, vid.height-SBAR_HEIGHT+12, 22, 9, bottom);
+		Draw_Fill (xofs, vid.conheight-SBAR_HEIGHT+3, 22, 9, top);
+		Draw_Fill (xofs, vid.conheight-SBAR_HEIGHT+12, 22, 9, bottom);
 
 		// draw number
 		f = s->frags;
@@ -925,7 +925,7 @@ Sbar_Draw
 */
 void Sbar_Draw (void)
 {
-	if (scr_con_current == vid.height)
+	if (scr_con_current == vid.conheight)
 		return;		// console is full screen
 
 	if (sb_updates >= vid.numpages)
@@ -935,8 +935,8 @@ void Sbar_Draw (void)
 
 	sb_updates++;
 
-	if (sb_lines && vid.width > 320) 
-		Draw_TileClear (0, vid.height - sb_lines, vid.width, sb_lines);
+	if (sb_lines && vid.conwidth > 320) 
+		Draw_TileClear (0, vid.conheight - sb_lines, vid.conwidth, sb_lines);
 
 	if (sb_lines > 24)
 	{
@@ -1037,7 +1037,7 @@ void Sbar_Draw (void)
 					  cl.stats[STAT_AMMO] <= 10);
 	}
 
-	if (vid.width > 320) {
+	if (vid.conwidth > 320) {
 		if (cl.gametype == GAME_DEATHMATCH)
 			Sbar_MiniDeathmatchOverlay ();
 	}
@@ -1104,7 +1104,7 @@ void Sbar_DeathmatchOverlay (void)
 // draw the text
 	l = scoreboardlines;
 
-	x = 80 + ((vid.width - 320)>>1);
+	x = 80 + ((vid.conwidth - 320)>>1);
 	y = 40;
 	for (i=0 ; i<l ; i++)
 	{
@@ -1173,7 +1173,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 	scoreboard_t	*s;
 	int				numlines;
 
-	if (vid.width < 512 || !sb_lines)
+	if (vid.conwidth < 512 || !sb_lines)
 		return;
 
 	scr_copyeverything = 1;
@@ -1183,7 +1183,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 	Sbar_SortFrags ();
 
 // draw the text
-	y = vid.height - sb_lines;
+	y = vid.conheight - sb_lines;
 	numlines = sb_lines/8;
 	if (numlines < 3)
 		return;
@@ -1204,7 +1204,7 @@ void Sbar_MiniDeathmatchOverlay (void)
             i = 0;
 
 	x = 324;
-	for (/* */; i < scoreboardlines && y < vid.height - 8 ; i++)
+	for (/* */; i < scoreboardlines && y < vid.conheight - 8 ; i++)
 	{
 		k = fragsort[i];
 		s = &cl.scores[k];
@@ -1269,6 +1269,7 @@ void Sbar_IntermissionOverlay (void)
 	qpic_t	*pic;
 	int		dig;
 	int		num;
+	int		x;
 
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
@@ -1279,27 +1280,30 @@ void Sbar_IntermissionOverlay (void)
 		return;
 	}
 
+// centred on a scaled screen; at scale 1 it stays in the top left corner
+	x = scr_2dscale > 1 ? (vid.conwidth - 320)>>1 : 0;
+
 	pic = Draw_CachePic ("gfx/complete.lmp");
-	Draw_Pic (64, 24, pic);
+	Draw_Pic (x+64, 24, pic);
 
 	pic = Draw_CachePic ("gfx/inter.lmp");
-	Draw_TransPic (0, 56, pic);
+	Draw_TransPic (x+0, 56, pic);
 
 // time
 	dig = cl.completed_time/60;
-	Sbar_IntermissionNumber (160, 64, dig, 3, 0);
+	Sbar_IntermissionNumber (x+160, 64, dig, 3, 0);
 	num = cl.completed_time - dig*60;
-	Draw_TransPic (234,64,sb_colon);
-	Draw_TransPic (246,64,sb_nums[0][num/10]);
-	Draw_TransPic (266,64,sb_nums[0][num%10]);
+	Draw_TransPic (x+234,64,sb_colon);
+	Draw_TransPic (x+246,64,sb_nums[0][num/10]);
+	Draw_TransPic (x+266,64,sb_nums[0][num%10]);
 
-	Sbar_IntermissionNumber (160, 104, cl.stats[STAT_SECRETS], 3, 0);
-	Draw_TransPic (232,104,sb_slash);
-	Sbar_IntermissionNumber (240, 104, cl.stats[STAT_TOTALSECRETS], 3, 0);
+	Sbar_IntermissionNumber (x+160, 104, cl.stats[STAT_SECRETS], 3, 0);
+	Draw_TransPic (x+232,104,sb_slash);
+	Sbar_IntermissionNumber (x+240, 104, cl.stats[STAT_TOTALSECRETS], 3, 0);
 
-	Sbar_IntermissionNumber (160, 144, cl.stats[STAT_MONSTERS], 3, 0);
-	Draw_TransPic (232,144,sb_slash);
-	Sbar_IntermissionNumber (240, 144, cl.stats[STAT_TOTALMONSTERS], 3, 0);
+	Sbar_IntermissionNumber (x+160, 144, cl.stats[STAT_MONSTERS], 3, 0);
+	Draw_TransPic (x+232,144,sb_slash);
+	Sbar_IntermissionNumber (x+240, 144, cl.stats[STAT_TOTALMONSTERS], 3, 0);
 
 }
 
@@ -1317,5 +1321,5 @@ void Sbar_FinaleOverlay (void)
 	scr_copyeverything = 1;
 
 	pic = Draw_CachePic ("gfx/finale.lmp");
-	Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
+	Draw_TransPic ( (vid.conwidth-pic->width)/2, 16, pic);
 }

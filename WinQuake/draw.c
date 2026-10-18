@@ -123,6 +123,68 @@ void Draw_Init (void)
 
 /*
 ================
+Draw_Scaled
+
+Draws a block of 8-bit pixels given in 2D coordinates, each pixel as a
+scr_2dscale x scr_2dscale square. Pixels equal to transparent (-1 for none)
+are skipped; translation, if not NULL, remaps the others.
+================
+*/
+static void Draw_Scaled (int x, int y, byte *source, int width, int height,
+	int sourcerowbytes, int transparent, byte *translation)
+{
+	int		scale, u, v, i, j, c;
+	byte	*dest, *d;
+
+	if (x < 0 || y < 0 || x + width > vid.conwidth || y + height > vid.conheight)
+		return;
+
+	scale = scr_2dscale;
+	dest = vid.buffer + y*scale*vid.rowbytes + x*scale;
+
+	for (v=0 ; v<height ; v++, source += sourcerowbytes)
+	{
+		for (u=0 ; u<width ; u++)
+		{
+			c = source[u];
+			if (c == transparent)
+				continue;
+			if (translation)
+				c = translation[c];
+			d = dest + u*scale;
+			for (j=0 ; j<scale ; j++, d += vid.rowbytes)
+				for (i=0 ; i<scale ; i++)
+					d[i] = c;
+		}
+		dest += scale*vid.rowbytes;
+	}
+}
+
+/*
+================
+Draw_ScaleRect
+
+Turns a rectangle in 2D coordinates into one in vid.buffer pixels. A side
+that reaches the edge of the 2D screen goes on to the edge of the real one,
+which can be up to scr_2dscale-1 pixels further.
+================
+*/
+static void Draw_ScaleRect (int *x, int *y, int *w, int *h)
+{
+	int		x1, y1;
+
+	x1 = *x + *w;
+	y1 = *y + *h;
+	*x = *x < 0 ? 0 : *x * scr_2dscale;
+	*y = *y < 0 ? 0 : *y * scr_2dscale;
+	x1 = x1 >= vid.conwidth ? vid.width : x1 * scr_2dscale;
+	y1 = y1 >= vid.conheight ? vid.height : y1 * scr_2dscale;
+	*w = x1 - *x;
+	*h = y1 - *y;
+}
+
+/*
+================
 Draw_Character
 
 Draws one 8*8 graphics character with 0 being transparent.
@@ -163,6 +225,11 @@ void Draw_Character (int x, int y, int num)
 	else
 		drawline = 8;
 
+	if (scr_2dscale > 1)
+	{
+		Draw_Scaled (x, y, source, 8, drawline, 128, 0, NULL);
+		return;
+	}
 
 	if (r_pixbytes == 1)
 	{
@@ -291,14 +358,21 @@ void Draw_Pic (int x, int y, qpic_t *pic)
 	int				v, u;
 
 	if ((x < 0) ||
-		(x + pic->width > vid.width) ||
+		(x + pic->width > vid.conwidth) ||
 		(y < 0) ||
-		(y + pic->height > vid.height))
+		(y + pic->height > vid.conheight))
 	{
 		Sys_Error ("Draw_Pic: bad coordinates");
 	}
 
 	source = pic->data;
+
+	if (scr_2dscale > 1)
+	{
+		Draw_Scaled (x, y, source, pic->width, pic->height, pic->width,
+			-1, NULL);
+		return;
+	}
 
 	if (r_pixbytes == 1)
 	{
@@ -341,13 +415,20 @@ void Draw_TransPic (int x, int y, qpic_t *pic)
 	unsigned short	*pusdest;
 	int				v, u;
 
-	if (x < 0 || (unsigned)(x + pic->width) > vid.width || y < 0 ||
-		 (unsigned)(y + pic->height) > vid.height)
+	if (x < 0 || (unsigned)(x + pic->width) > vid.conwidth || y < 0 ||
+		 (unsigned)(y + pic->height) > vid.conheight)
 	{
 		Sys_Error ("Draw_TransPic: bad coordinates");
 	}
 		
 	source = pic->data;
+
+	if (scr_2dscale > 1)
+	{
+		Draw_Scaled (x, y, source, pic->width, pic->height, pic->width,
+			TRANSPARENT_COLOR, NULL);
+		return;
+	}
 
 	if (r_pixbytes == 1)
 	{
@@ -428,13 +509,20 @@ void Draw_TransPicTranslate (int x, int y, qpic_t *pic, byte *translation)
 	unsigned short	*pusdest;
 	int				v, u;
 
-	if (x < 0 || (unsigned)(x + pic->width) > vid.width || y < 0 ||
-		 (unsigned)(y + pic->height) > vid.height)
+	if (x < 0 || (unsigned)(x + pic->width) > vid.conwidth || y < 0 ||
+		 (unsigned)(y + pic->height) > vid.conheight)
 	{
 		Sys_Error ("Draw_TransPic: bad coordinates");
 	}
 		
 	source = pic->data;
+
+	if (scr_2dscale > 1)
+	{
+		Draw_Scaled (x, y, source, pic->width, pic->height, pic->width,
+			TRANSPARENT_COLOR, translation);
+		return;
+	}
 
 	if (r_pixbytes == 1)
 	{
@@ -536,7 +624,7 @@ Draw_ConsoleBackground
 */
 void Draw_ConsoleBackground (int lines)
 {
-	int				x, y, v;
+	int				x, y, v, width, height;
 	byte			*src, *dest;
 	unsigned short	*pusdest;
 	int				f, fstep;
@@ -563,22 +651,31 @@ void Draw_ConsoleBackground (int lines)
 	for (x=0 ; x<strlen(ver) ; x++)
 		Draw_CharToConback (ver[x], dest+(x<<3));
 	
-// draw the pic
+// draw the pic, stretched over the whole screen (lines are 2D lines)
+	width = vid.conwidth;
+	height = vid.conheight;
+	if (scr_2dscale > 1)
+	{
+		width = vid.width;
+		height = vid.height;
+		lines = lines >= vid.conheight ? height : lines * scr_2dscale;
+	}
+
 	if (r_pixbytes == 1)
 	{
 		dest = vid.conbuffer;
 
 		for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 		{
-			v = (vid.conheight - lines + y)*200/vid.conheight;
+			v = (height - lines + y)*200/height;
 			src = conback->data + v*320;
-			if (vid.conwidth == 320)
-				memcpy (dest, src, vid.conwidth);
+			if (width == 320)
+				memcpy (dest, src, width);
 			else
 			{
 				f = 0;
-				fstep = 320*0x10000/vid.conwidth;
-				for (x=0 ; x<vid.conwidth ; x+=4)
+				fstep = 320*0x10000/width;
+				for (x=0 ; x<width ; x+=4)
 				{
 					dest[x] = src[f>>16];
 					f += fstep;
@@ -729,6 +826,30 @@ void R_DrawRect16 (vrect_t *prect, int rowbytes, byte *psrc,
 
 /*
 =============
+Draw_TileClearScaled
+
+Draw_TileClear on a scaled 2D screen: the tile is scaled too.
+=============
+*/
+static void Draw_TileClearScaled (int x, int y, int w, int h)
+{
+	int		u, v;
+	byte	*psrc, *dest;
+
+	Draw_ScaleRect (&x, &y, &w, &h);
+
+	for (v=y ; v<y+h ; v++)
+	{
+		psrc = r_rectdesc.ptexbytes +
+			(v / scr_2dscale % r_rectdesc.height) * r_rectdesc.rowbytes;
+		dest = vid.buffer + v*vid.rowbytes;
+		for (u=x ; u<x+w ; u++)
+			dest[u] = psrc[u / scr_2dscale % r_rectdesc.width];
+	}
+}
+
+/*
+=============
 Draw_TileClear
 
 This repeats a 64*64 tile graphic to fill the screen around a sized down
@@ -740,6 +861,12 @@ void Draw_TileClear (int x, int y, int w, int h)
 	int				width, height, tileoffsetx, tileoffsety;
 	byte			*psrc;
 	vrect_t			vr;
+
+	if (scr_2dscale > 1)
+	{
+		Draw_TileClearScaled (x, y, w, h);
+		return;
+	}
 
 	r_rectdesc.rect.x = x;
 	r_rectdesc.rect.y = y;
@@ -813,6 +940,9 @@ void Draw_Fill (int x, int y, int w, int h, int c)
 	unsigned short	*pusdest;
 	unsigned		uc;
 	int				u, v;
+
+	if (scr_2dscale > 1)
+		Draw_ScaleRect (&x, &y, &w, &h);
 
 	if (r_pixbytes == 1)
 	{
