@@ -67,9 +67,9 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
   hint over the game, instead of leaving an unhandled promise rejection.
 - **Touch:** on devices whose main pointer is a finger
   (`matchMedia('(pointer: coarse)')`; `?touch=1` / `?touch=0` force it on
-  or off) the page puts touch controls over the game, which then fills the
-  screen (landscape; a hint asks to turn the device in portrait; the
-  controls keep clear of `env(safe-area-inset-*)`). The game tells the page
+  or off) the page puts touch controls over the game (in landscape or
+  portrait; `?rotate=1` brings back the old hint asking to turn the device
+  in portrait; the controls keep clear of `env(safe-area-inset-*)`). The game tells the page
   which layout to show (`Module.quakePlaying`, set by `RL_SetPlaying` from
   `in_raylib.c`, the same test as for the mouse):
   - *play:* a stick wherever the left thumb lands (half way walks, the rim
@@ -97,9 +97,27 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
   from the Play tap, a user gesture). The hidden text input's keys are
   stopped before GLFW's window-capture key listener. The desktop is
   unchanged: no overlay, the same keyboard, mouse and pointer lock.
-- **Video:** the frame is 640×480 (`-width`/`-height` still work), drawn 2×
-  into a 1280×960 canvas, which the page scales to fit, 4:3. Fullscreen is
-  the page's: the Fullscreen button or `Alt+Enter`.
+- **Video and page:** the game fills the window; the page's text
+  (controls, credits, licenses) is in an *About* panel (button at the top
+  right, and a link under Play). The frame follows the canvas: each frame
+  the bridge reads the canvas's CSS size times `devicePixelRatio`
+  (`RL_GetDrawableSize`) and keeps the canvas's backing store at that size,
+  setting the GL viewport itself (raylib's window size is left alone: GLFW
+  would size the canvas in CSS pixels). `VID_CheckResize`, called by
+  `SCR_UpdateScreen` before it lays out the view, reallocates the frame,
+  z-buffer and surface cache (`D_FlushCaches`, `D_InitCaches`) once a new
+  size has held for 0.25 s and prints `Video mode WxH, canvas WxH`. The
+  frame is the canvas size (width rounded down to a multiple of 8, shown
+  1:1) while it fits `vid_maxpixels` (default 2073600, 1920×1080 worth)
+  and 2040×2560 (`MAXWIDTH`/`MAXHEIGHT`: the edge list keeps screen x in
+  12.20 fixed point, so the width must stay under 2048). Past that it is a
+  whole fraction of the canvas shown at a whole multiple, or, if that keeps
+  less than 3/4 of the pixels the budget allows, the largest frame of the
+  canvas's shape that fits, nearest-sampled (an iPhone 14 at 390×844 @3x:
+  canvas 1170×2532, frame 976×2118). `?args=-width%20640%20-height%20480`
+  keeps a fixed frame, scaled to fit. FOV is Quake's horizontal 90°, so a
+  portrait screen sees a tall, narrow view; the HUD is not scaled.
+  Fullscreen is the page's: the Fullscreen button or `Alt+Enter`.
 - **Network:** no sockets in a page; the build links id's `net_none.c`
   (loopback only), so single player and demos work and multiplayer does not.
 
@@ -129,10 +147,11 @@ On each phone, by touch only: the overlay turns on by itself, the audio
 context runs, title → New Game (start map) → E1M1 (typed into the
 console on the phone keyboard), save, move with the stick while firing,
 look (yaw and pitch), jump, next weapon, save, load the first save and
-check it came back, menu open/close, the portrait hint, and no pointer
+check it came back, menu open/close, turning to portrait and back (the
+frame re-inits at the new canvas size, no rotate hint), and no pointer
 lock request. Game state is read from the save files (origin, `v_angle`,
-shells, weapon). Desktop: no overlay, keyboard play, pointer lock on a
-click, mouse look, and `?touch=1` shows the overlay. Screenshots,
+shells, weapon). Desktop: the frame is the canvas size and follows a
+window resize, no overlay, keyboard play, pointer lock on a click, mouse look, and `?touch=1` shows the overlay. Screenshots,
 `result.json` and the console log go to the output directory. Emulation
 is not a phone: real iOS Safari and Android Chrome are untested.
 

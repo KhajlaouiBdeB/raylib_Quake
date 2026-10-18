@@ -44,6 +44,15 @@ int RL_WindowOpen (void);
 // linear: bilinear filtering instead of nearest.
 void RL_Present (const unsigned *rgba, int integer, int linear);
 
+// The size of a new frame for RL_Present.
+void RL_SetFrameSize (int width, int height);
+
+// The browser build: the size, in device pixels, the page shows the canvas
+// at (its CSS size times devicePixelRatio). The canvas is drawn at that
+// size, so a frame of that size is shown 1:1. Returns 0 elsewhere (and if
+// the canvas is not shown).
+int RL_GetDrawableSize (int *width, int *height);
+
 int RL_IsFullscreen (void);
 void RL_SetFullscreen (int fullscreen);
 void RL_SetVsync (int vsync);

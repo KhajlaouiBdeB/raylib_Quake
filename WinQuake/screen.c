@@ -866,7 +866,9 @@ void SCR_UpdateScreen (void)
 		oldscreensize = scr_viewsize.value;
 		vid.recalc_refdef = true;
 	}
-	
+
+	VID_CheckResize ();
+
 	if (vid.recalc_refdef)
 	{
 	// something changed, so reorder the screen
