@@ -83,7 +83,26 @@ else()
   list(APPEND QUAKE_RAYLIB_DRIVER_SOURCES net_udp.c net_bsd.c)
 endif()
 
+# GLQuake (id's OpenGL renderer) for `quake-gl`: the same engine without
+# the software renderer, compiled with GLQUAKE, drawing through
+# gl_raylib.c, which runs GLQuake's OpenGL 1.1 calls on raylib's rlgl.
+set(QUAKE_GL_CORE_SOURCES
+  cl_demo.c cl_input.c cl_main.c cl_parse.c cl_tent.c chase.c
+  cmd.c common.c console.c crc.c cvar.c
+  host.c host_cmd.c keys.c menu.c mathlib.c
+  net_main.c net_loop.c net_dgrm.c net_vcr.c
+  pr_cmds.c pr_edict.c pr_exec.c
+  sbar.c view.c wad.c world.c zone.c
+  sv_main.c sv_move.c sv_phys.c sv_user.c
+  r_part.c
+  gl_draw.c gl_mesh.c gl_model.c gl_refrag.c gl_rlight.c gl_rmain.c
+  gl_rmisc.c gl_rsurf.c gl_screen.c gl_test.c gl_warp.c
+)
+set(QUAKE_GL_DRIVER_SOURCES vid_glraylib.c gl_raylib.c)
+
 list(TRANSFORM QUAKE_CORE_SOURCES PREPEND ${WQ}/)
+list(TRANSFORM QUAKE_GL_CORE_SOURCES PREPEND ${WQ}/)
+list(TRANSFORM QUAKE_GL_DRIVER_SOURCES PREPEND ${WQ}/)
 list(TRANSFORM QUAKE_NULL_DRIVER_SOURCES PREPEND ${WQ}/)
 list(TRANSFORM QUAKE_RAYLIB_DRIVER_SOURCES PREPEND ${WQ}/)
 
@@ -153,6 +172,26 @@ if(QUAKE_RAYLIB)
   if(EMSCRIPTEN)
     include(web/web.cmake)
     return()
+  endif()
+
+  # GLQuake: the raylib drivers with vid_glraylib.c in place of
+  # vid_raylib.c. gl_raylib.c includes raylib's rlgl.h (not raylib.h).
+  option(QUAKE_GL "Build quake-gl, GLQuake on raylib's rlgl" ON)
+  if(QUAKE_GL)
+    set(QUAKE_GL_SOURCES ${QUAKE_GL_CORE_SOURCES} ${QUAKE_RAYLIB_DRIVER_SOURCES}
+      ${QUAKE_GL_DRIVER_SOURCES})
+    list(REMOVE_ITEM QUAKE_GL_SOURCES ${WQ}/vid_raylib.c)
+    add_executable(quake-gl ${QUAKE_GL_SOURCES})
+    quake_compile_settings(quake-gl)
+    target_compile_definitions(quake-gl PRIVATE GLQUAKE GLQUAKE_RAYLIB)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+      # id's GL files are full of leftover locals and MSVC pragmas;
+      # everything else -Wall reports was fixed.
+      target_compile_options(quake-gl PRIVATE
+        -Wno-unused-variable -Wno-unused-but-set-variable
+        -Wno-unknown-pragmas)
+    endif()
+    target_link_libraries(quake-gl PRIVATE raylib m)
   endif()
 
   set(QUAKE_NULL_TARGET quake-null)
