@@ -57,6 +57,15 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
 - **Audio:** the same `snd_raylib.c` DMA driver on raylib's miniaudio Web
   Audio backend. The game starts from the "Click to play" button, so the
   audio context is created inside a user gesture and is allowed to run.
+- **Brightness:** at id's `gamma 1` the raw palette looks very dark in a
+  browser on today's screens (half the brightness of GL ports such as
+  netquake.io). `VID_SetPalette` puts a 0.7 power curve
+  (`VID_DISPLAY_GAMMA`) on top of the `gamma` cvar, in the 256-entry RGBA
+  table, so it costs nothing per pixel; black and white stay put. It is not
+  a new `gamma` default because `default.cfg` sets `gamma 1.0` and every
+  `config.cfg` saves it. The Options → Brightness slider spans gamma
+  0.714–1.429 instead of 0.5–1, which comes out as id's 0.5–1 overall;
+  the default (1) sits at 60%. The desktop build is unchanged.
 - **Mouse:** browsers allow pointer lock only from a user's event, so the
   bridge tells the page when the game wants the mouse
   (`Module.quakeWantsPointer`: playing, not in a menu, the console or a
@@ -135,6 +144,16 @@ shells, weapon). Desktop: no overlay, keyboard play, pointer lock on a
 click, mouse look, and `?touch=1` shows the overlay. Screenshots,
 `result.json` and the console log go to the output directory. Emulation
 is not a phone: real iOS Safari and Android Chrome are untested.
+
+Brightness (QUAK-40): `scripts/web_luma.mjs` prints the mean luma of the
+3D view at the `start` spawn at 1280×720, 1920×1080 and Pixel 7 / iPhone 14
+emulation, moves the Brightness slider to both ends, and saves the
+spawn, the menu fade and the E1M1 spawn. `--args "+gamma 0.8"` tries a
+value on any build.
+
+```sh
+node scripts/web_luma.mjs build-web web-luma [--args "..."]
+```
 
 Headed Chromium under a bare Xvfb (no window manager) sometimes refuses
 every pointer lock for the whole session with `WrongDocumentError` ("The
