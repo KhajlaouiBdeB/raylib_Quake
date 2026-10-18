@@ -294,6 +294,7 @@ void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr)
 	int			*cmds;
 	trivertx_t	*verts;
 	char	cache[MAX_QPATH], fullpath[MAX_OSPATH], *c;
+	qboolean	cached;
 	FILE	*f;
 	int		len;
 	byte	*data;
@@ -308,16 +309,21 @@ void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr)
 	COM_StripExtension (m->name+strlen("progs/"), cache+strlen("glquake/"));
 	strcat (cache, ".ms2");
 
+	// A short, corrupt or foreign cache file is built again instead of
+	// overflowing the arrays.
+	cached = false;
 	COM_FOpenFile (cache, &f);	
 	if (f)
 	{
-		fread (&numcommands, 4, 1, f);
-		fread (&numorder, 4, 1, f);
-		fread (&commands, numcommands * sizeof(commands[0]), 1, f);
-		fread (&vertexorder, numorder * sizeof(vertexorder[0]), 1, f);
+		cached = fread (&numcommands, 4, 1, f) == 1
+			&& fread (&numorder, 4, 1, f) == 1
+			&& numcommands > 0 && numcommands <= (int)(sizeof(commands)/sizeof(commands[0]))
+			&& numorder > 0 && numorder <= (int)(sizeof(vertexorder)/sizeof(vertexorder[0]))
+			&& fread (&commands, numcommands * sizeof(commands[0]), 1, f) == 1
+			&& fread (&vertexorder, numorder * sizeof(vertexorder[0]), 1, f) == 1;
 		fclose (f);
 	}
-	else
+	if (!cached)
 	{
 		//
 		// build it from scratch
@@ -329,7 +335,7 @@ void GL_MakeAliasModelDisplayLists (model_t *m, aliashdr_t *hdr)
 		//
 		// save out the cached version
 		//
-		sprintf (fullpath, "%s/%s", com_gamedir, cache);
+		Q_snprintf (fullpath, sizeof(fullpath), "%s/%s", com_gamedir, cache);
 		f = fopen (fullpath, "wb");
 		if (f)
 		{
