@@ -435,7 +435,7 @@ void SCR_DrawRam (void)
 	if (!r_cache_thrash)
 		return;
 
-	Draw_Pic (scr_vrect.x+32, scr_vrect.y, scr_ram);
+	Draw_Pic (scr_vrect.x/scr_2dscale+32, scr_vrect.y/scr_2dscale, scr_ram);
 }
 
 /*
@@ -460,7 +460,7 @@ void SCR_DrawTurtle (void)
 	if (count < 3)
 		return;
 
-	Draw_Pic (scr_vrect.x, scr_vrect.y, scr_turtle);
+	Draw_Pic (scr_vrect.x/scr_2dscale, scr_vrect.y/scr_2dscale, scr_turtle);
 }
 
 /*
@@ -475,7 +475,7 @@ void SCR_DrawNet (void)
 	if (cls.demoplayback)
 		return;
 
-	Draw_Pic (scr_vrect.x+64, scr_vrect.y, scr_net);
+	Draw_Pic (scr_vrect.x/scr_2dscale+64, scr_vrect.y/scr_2dscale, scr_net);
 }
 
 /*
