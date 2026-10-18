@@ -198,15 +198,20 @@ const angleDiff = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
 
 // A small greyscale copy of the game picture. The WebGL canvas cannot be
 // read back once shown, so this decodes a screenshot in the page. A
-// screenshot sometimes catches the cleared (black) buffer between two
-// frames: take another.
+// screenshot sometimes catches the cleared buffer between two frames, or a
+// partly black one (headless Chromium, both seen again and again on the
+// same spot): it is always darker than the real frame, so keep the
+// brightest of three. A fixed "mean > 8" cutoff stopped working once the
+// web build got brighter (QUAK-40): the partly black captures reach 9.
+const mean = (sig) => sig.reduce((x, y) => x + y, 0) / sig.length;
 async function canvasSig(p) {
-  for (let i = 0; i < 5; i++) {
+  let best = null;
+  for (let i = 0; i < 3; i++) {
     const sig = await canvasShot(p);
-    if (sig.reduce((x, y) => x + y, 0) / sig.length > 8)
-      return sig;
+    if (!best || mean(sig) > mean(best))
+      best = sig;
   }
-  return canvasShot(p);
+  return best;
 }
 async function canvasShot(p) {
   const png = await p.page.locator('#canvas').screenshot();
@@ -341,13 +346,13 @@ async function phone(key, device) {
     still = Math.max(still, diff(a, await canvasSig(p)));
   }
   // The arc lasts about 0.6 s and a screenshot can take longer than that
-  // under load: hold JUMP and keep sampling (single shots, blank ones
-  // skipped) for a while, so samples land inside the arc.
+  // under load: hold JUMP and keep sampling (single shots, blank and
+  // partly black ones skipped) for a while, so samples land inside the arc.
   const jid = await f.start(...Object.values(await center(p, '#tjump')));
   let jump = 0;
   for (const end = Date.now() + 900; Date.now() < end;) {
     const sig = await canvasShot(p);
-    if (sig.reduce((x, y) => x + y, 0) / sig.length > 8)
+    if (mean(sig) > mean(a) / 2)
       jump = Math.max(jump, diff(a, sig));
   }
   await f.end(jid);
