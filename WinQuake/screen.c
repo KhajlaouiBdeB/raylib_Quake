@@ -216,9 +216,12 @@ AdaptFov
 
 "Hor+": treat fov_x as the horizontal fov of a 4:3 screen of the same
 height, so wider screens see more at the sides and keep the 4:3 vertical
-view. Screens narrower than 4:3 (portrait) keep fov_x and see more above
-and below instead. Assumes square pixels (vid.aspect 1). A 4:3 screen
-returns fov_x unchanged.
+view. Screens narrower than 4:3 (portrait) keep the 4:3 vertical view too
+and see less at the sides: keeping fov_x there gives a portrait phone a
+vertical fov of about 130 degrees, past what the software renderer can
+draw (the floor under the player turns to garbage, as fov 150 does on a
+4:3 screen). Assumes square pixels (vid.aspect 1). A 4:3 screen returns
+fov_x unchanged.
 ====================
 */
 static float AdaptFov (float fov_x, int width, int height)
@@ -226,7 +229,7 @@ static float AdaptFov (float fov_x, int width, int height)
 	double	ratio, a;
 
 	ratio = (width * 3.0) / (height * 4.0);
-	if (ratio <= 1.0)
+	if (ratio == 1.0)
 		return fov_x;
 
 	a = atan (tan (fov_x / 360 * M_PI) * ratio) * 360 / M_PI;
@@ -901,7 +904,9 @@ void SCR_UpdateScreen (void)
 		oldscreensize = scr_viewsize.value;
 		vid.recalc_refdef = true;
 	}
-	
+
+	VID_CheckResize ();
+
 	if (vid.recalc_refdef)
 	{
 	// something changed, so reorder the screen
