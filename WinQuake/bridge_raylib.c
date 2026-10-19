@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string.h>
 
 #include "raylib.h"
+#include "rlgl.h"
 #include "bridge_raylib.h"
 
 #ifdef __EMSCRIPTEN__
@@ -49,6 +50,21 @@ static EM_BOOL WebMouseMove (int type, const EmscriptenMouseEvent *ev, void *use
 static int WebPointerLocked (void)
 {
 	return EM_ASM_INT ({ return document.pointerLockElement === Module.canvas; });
+}
+
+// The canvas's CSS size in device pixels, packed as width << 16 | height;
+// 0 if it is not laid out.
+static int WebDrawableSize (void)
+{
+	return EM_ASM_INT ({
+		var r = Module.canvas.getBoundingClientRect ();
+		var d = window.devicePixelRatio || 1;
+		var w = Math.round (r.width * d);
+		var h = Math.round (r.height * d);
+		if (w < 1 || h < 1)
+			return 0;
+		return Math.min (w, 32767) << 16 | Math.min (h, 32767);
+	});
 }
 #endif
 
@@ -127,6 +143,88 @@ int RL_WindowOpen (void)
 	return windowopen;
 }
 
+void RL_SetFrameSize (int width, int height)
+{
+	Image	img;
+
+	if (!windowopen || (width == fbwidth && height == fbheight))
+		return;
+	UnloadTexture (screentex);
+	fbwidth = width;
+	fbheight = height;
+	img = GenImageColor (width, height, BLACK);
+	screentex = LoadTextureFromImage (img);
+	UnloadImage (img);
+	SetTextureFilter (screentex,
+		texlinear ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
+}
+
+int RL_GetDrawableSize (int *width, int *height)
+{
+#ifdef __EMSCRIPTEN__
+	int		size;
+
+	size = WebDrawableSize ();
+	if (!size)
+		return 0;
+	*width = size >> 16;
+	*height = size & 0xffff;
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+#ifdef __EMSCRIPTEN__
+// The browser: the canvas's backing store is kept at the size the page
+// shows it at, and raylib's own window size is left alone (GLFW would size
+// the canvas in CSS pixels); the viewport and projection are set here.
+static void WebPresent (int integer)
+{
+	int		size, cw, ch, n;
+	float	scale;
+	Rectangle	src, dst;
+
+	size = WebDrawableSize ();
+	emscripten_get_canvas_element_size ("#canvas", &cw, &ch);
+	if (size && ((size >> 16) != cw || (size & 0xffff) != ch))
+	{
+		cw = size >> 16;
+		ch = size & 0xffff;
+		emscripten_set_canvas_element_size ("#canvas", cw, ch);
+	}
+
+	// 1:1, or whole multiples, when the frame was sized for that; else the
+	// largest fit, nearest (or linear) sampled
+	scale = (float)cw / fbwidth;
+	if ((float)ch / fbheight < scale)
+		scale = (float)ch / fbheight;
+	if (integer)
+	{
+		n = (int)scale;
+		if (n >= 1)
+			scale = (float)n;
+	}
+	src = (Rectangle) { 0, 0, (float)fbwidth, (float)fbheight };
+	dst.width = fbwidth * scale;
+	dst.height = fbheight * scale;
+	dst.x = (float)(int)((cw - dst.width) / 2);
+	dst.y = (float)(int)((ch - dst.height) / 2);
+
+	BeginDrawing ();
+	rlDrawRenderBatchActive ();
+	rlViewport (0, 0, cw, ch);
+	rlMatrixMode (RL_PROJECTION);
+	rlLoadIdentity ();
+	rlOrtho (0, cw, ch, 0, 0.0, 1.0);
+	rlMatrixMode (RL_MODELVIEW);
+	rlLoadIdentity ();
+	ClearBackground (BLACK);
+	DrawTexturePro (screentex, src, dst, (Vector2) { 0, 0 }, 0.0f, WHITE);
+	EndDrawing ();
+}
+#endif
+
 void RL_Present (const unsigned *rgba, int integer, int linear)
 {
 	float		winw, winh;
@@ -144,6 +242,11 @@ void RL_Present (const unsigned *rgba, int integer, int linear)
 			linear ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
 		texlinear = linear;
 	}
+
+#ifdef __EMSCRIPTEN__
+	WebPresent (integer);
+	return;
+#endif
 
 	// Keep the aspect ratio, centred, black bars on the long side.
 	winw = (float)GetScreenWidth ();

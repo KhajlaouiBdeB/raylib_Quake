@@ -14,8 +14,9 @@
 // (start map) -> E1M1 (typed into the console on the phone keyboard); in
 // E1M1 save, then move with the stick while firing, look by dragging
 // (yaw and pitch), jump, next weapon, save again, load the first save and
-// check it came back; open and close the menu; the portrait hint; no
-// pointer lock is ever asked for, and the audio context runs. Game state
+// check it came back; open and close the menu; turn to portrait and back
+// (the game re-inits at the canvas size); no pointer lock is ever asked
+// for, and the audio context runs. Game state
 // is read from the save files (origin, view angles, shells, weapon).
 // Desktop: no overlay, keyboard play, pointer lock on a click, the mouse
 // looks and fires; ?touch=1 forces the overlay. Any page or console error
@@ -235,6 +236,33 @@ function diff(a, b) {
   return d / a.length;
 }
 
+// After a resize: the canvas is drawn at its CSS size times devicePixelRatio,
+// and the game prints a matching "Video mode WxH, canvas WxH" line (the
+// frame is the canvas size, or less within vid_maxpixels).
+async function fitsCanvas(p, mark, ms = 8000) {
+  const want = () => p.eval(() => {
+    const c = document.getElementById('canvas'), r = c.getBoundingClientRect();
+    const d = devicePixelRatio || 1;
+    return { w: Math.round(r.width * d), h: Math.round(r.height * d), cw: c.width, ch: c.height };
+  });
+  const end = Date.now() + ms;
+  let w, line;
+  while (Date.now() < end) {
+    w = await want();
+    line = null;
+    for (let i = p.lines.length - 1; i >= mark && !line; i--) {
+      const m = p.lines[i].match(/Video mode (\d+)x(\d+), (?:canvas|window) (\d+)x(\d+)/);
+      if (m)
+        line = m.slice(1).map(Number);
+    }
+    if (line && w.cw === w.w && w.ch === w.h && line[2] === w.w && line[3] === w.h
+        && line[0] <= w.w && line[1] <= w.h)
+      return { ok: true, detail: `canvas ${w.cw}x${w.ch}, frame ${line[0]}x${line[1]}` };
+    await sleep(200);
+  }
+  return { ok: false, detail: `canvas ${w.cw}x${w.ch} (want ${w.w}x${w.h}), line ${line}` };
+}
+
 async function phone(key, device) {
   const tag = (s) => `${key}: ${s}`;
   const context = await browser.newContext({ ...pw.devices[device] });
@@ -319,6 +347,45 @@ async function phone(key, device) {
   check(tag('MENU opens the menu, BACK closes it'), menuOpen && menuClosed);
   await sleep(300);
 
+  // Jump, at the E1M1 start: once the player stands still, the picture
+  // moves with no other input than JUMP. (Done before walking: the walk
+  // can end under a low ledge, beside a strobing light, where nothing or
+  // everything moves.)
+  await sleep(2000);
+  const a = await canvasSig(p);
+  let still = 0;
+  for (let i = 0; i < 2; i++) {
+    await sleep(200);
+    still = Math.max(still, diff(a, await canvasSig(p)));
+  }
+  // The arc lasts about 0.6 s and a screenshot of a large canvas can take
+  // longer than that: press JUMP again and again (Quake jumps once per
+  // press) for 2.4 s while sampling (single shots, blank and partly black
+  // ones skipped), so samples land inside an arc.
+  const jc = await center(p, '#tjump');
+  let jumping = true;
+  const presses = (async () => {
+    while (jumping) {
+      const jid = await f.start(jc.x, jc.y);
+      await sleep(400);
+      await f.end(jid);
+      await sleep(100);
+    }
+  })();
+  let jump = 0, samples = 0;
+  for (const end = Date.now() + 2400; Date.now() < end;) {
+    const sig = await canvasShot(p);
+    if (mean(sig) > mean(a) / 2) {
+      jump = Math.max(jump, diff(a, sig));
+      samples++;
+    }
+  }
+  jumping = false;
+  await presses;
+  check(tag('JUMP moves the view'), jump > 2 * still + 1,
+        `still ${still.toFixed(2)}, jump ${jump.toFixed(2)} (${samples} samples)`);
+  await sleep(800);
+
   // Move with the stick while firing (two fingers), then look.
   const fire = await center(p, '#tfire');
   const sx = vp.width * 0.2, sy = vp.height * 0.6;
@@ -335,30 +402,6 @@ async function phone(key, device) {
   await f.drag(look, vp.width * 0.6, vp.height * 0.5, vp.width * 0.6 + 120, vp.height * 0.5 - 40, 8, 300);
   await f.end(look);
   await sleep(400);
-
-  // Jump: once the player stands still, the picture moves with no other
-  // input than JUMP.
-  await sleep(2000);
-  const a = await canvasSig(p);
-  let still = 0;
-  for (let i = 0; i < 2; i++) {
-    await sleep(200);
-    still = Math.max(still, diff(a, await canvasSig(p)));
-  }
-  // The arc lasts about 0.6 s and a screenshot can take longer than that
-  // under load: hold JUMP and keep sampling (single shots, blank and
-  // partly black ones skipped) for a while, so samples land inside the arc.
-  const jid = await f.start(...Object.values(await center(p, '#tjump')));
-  let jump = 0;
-  for (const end = Date.now() + 900; Date.now() < end;) {
-    const sig = await canvasShot(p);
-    if (mean(sig) > mean(a) / 2)
-      jump = Math.max(jump, diff(a, sig));
-  }
-  await f.end(jid);
-  check(tag('JUMP moves the view'), jump > 2 * still + 1,
-        `still ${still.toFixed(2)}, jump ${jump.toFixed(2)}`);
-  await sleep(800);
 
   // Next weapon
   await T('#tnext');
@@ -398,13 +441,19 @@ async function phone(key, device) {
         && s2.shells === s0.shells && s2.weapon === s0.weapon,
         s2 && `origin off by ${dist(s0.origin, s2.origin).toFixed(1)}, shells ${s2.shells}, weapon ${s2.weapon}`);
 
-  // Portrait: the hint; back to landscape: gone.
+  // Portrait: the game draws at the portrait canvas size; back to landscape.
+  mk = p.mark();
   await p.page.setViewportSize({ width: vp.height, height: vp.width });
-  const rot = await p.waitFor(() => !document.getElementById('rotate').classList.contains('hidden'), 3000);
+  const port = await fitsCanvas(p, mk);
+  await sleep(500);
   await p.shot(`${key}-portrait.png`);
+  mk = p.mark();
   await p.page.setViewportSize(vp);
-  const unrot = await p.waitFor(() => document.getElementById('rotate').classList.contains('hidden'), 3000);
-  check(tag('portrait shows the rotate hint'), rot && unrot);
+  const land = await fitsCanvas(p, mk);
+  check(tag('portrait and back re-init the video at the canvas size'), port.ok && land.ok,
+        `${port.detail}; ${land.detail}`);
+  check(tag('no rotate hint without ?rotate=1'), await p.eval(() =>
+    document.getElementById('rotate').classList.contains('hidden')));
 
   check(tag('no pointer lock asked for'), await p.eval(() => window.__locks === 0
         && document.pointerLockElement === null));
@@ -423,6 +472,16 @@ async function desktop() {
   check(tag('overlay stays hidden'), await p.eval(() =>
     document.getElementById('touch').classList.contains('hidden')
     && !document.body.classList.contains('touchplay')));
+  const first = await fitsCanvas(p, 0);
+  check(tag('frame is the canvas size at 1280x900'), first.ok, first.detail);
+  let mk0 = p.mark();
+  await p.page.setViewportSize({ width: 1000, height: 700 });
+  const resized = await fitsCanvas(p, mk0);
+  mk0 = p.mark();
+  await p.page.setViewportSize({ width: 1280, height: 900 });
+  const back = await fitsCanvas(p, mk0);
+  check(tag('window resize re-inits at the canvas size'), resized.ok && back.ok,
+        `${resized.detail}; ${back.detail}`);
   const kb = p.page.keyboard;
   const key = async (k, ms = 120) => { await kb.down(k); await sleep(ms); await kb.up(k); await sleep(250); };
   let mk = p.mark();

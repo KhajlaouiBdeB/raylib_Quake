@@ -63,6 +63,10 @@ void	VID_Update (vrect_t *rects)
 {
 }
 
+void	VID_CheckResize (void)
+{
+}
+
 /*
 ================
 D_BeginDirectRect

@@ -30,8 +30,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAXWORKINGVERTS	(MAXVERTS+4)	// max points in an intermediate
 										//  polygon (while processing)
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
-#define	MAXHEIGHT		1024
-#define	MAXWIDTH		1280
+// The edge list keeps screen x in 12.20 fixed point (r_draw.c, r_edge.c),
+// so the width has to stay under 2048. Height has no such limit; it is
+// large for portrait screens (the browser build renders at the page's size).
+#define	MAXHEIGHT		2560
+#define	MAXWIDTH		2040
 #define MAXDIMENSION	((MAXHEIGHT > MAXWIDTH) ? MAXHEIGHT : MAXWIDTH)
 
 #define SIN_BUFFER_SIZE	(MAXDIMENSION+CYCLE)
@@ -66,7 +69,7 @@ extern	entity_t		*currententity;
 #define	MINEDGES			NUMSTACKEDGES
 #define NUMSTACKSURFACES	800
 #define MINSURFACES			NUMSTACKSURFACES
-#define	MAXSPANS			3000
+#define	MAXSPANS			(MAXWIDTH+2400)	// a whole scan line, plus room
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct espan_s

@@ -6,22 +6,21 @@
 <title>raylib Quake — play the Quake shareware episode in your browser</title>
 <meta name="description" content="id Software's GPL Quake engine (WinQuake software renderer) ported to raylib and WebAssembly, with the shareware episode.">
 <style>
-  html, body { margin: 0; background: #111; color: #ccc;
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #ccc;
                font: 15px/1.5 system-ui, sans-serif; }
   a { color: #d9a441; }
-  main { max-width: 980px; margin: 0 auto; padding: 1em; }
   h1 { margin: .2em 0; font-size: 1.8em; color: #d9a441; letter-spacing: .04em; }
   h2 { font-size: 1.15em; color: #ddd; margin: 1.4em 0 .4em; }
-  /* 4:3, as wide as the page allows but never taller than the window */
-  #stage { position: relative; width: min(100%, calc((100vh - 5em) * 4 / 3));
-           margin: 0 auto; aspect-ratio: 4 / 3; background: #000;
-           border: 1px solid #333; box-sizing: border-box; }
+  /* The game fills the window. The canvas is drawn at its size in device
+     pixels (WinQuake/vid_raylib.c), so nothing scales it. */
+  #stage { position: fixed; inset: 0; background: #000; }
   #canvas { display: block; width: 100%; height: 100%; outline: none; }
-  #canvas:fullscreen { background: #000; object-fit: contain; }
+  #canvas:fullscreen { background: #000; }
   #overlay { position: absolute; inset: 0; display: flex; align-items: center;
-             justify-content: center; background: rgba(0, 0, 0, .85); }
+             justify-content: center; background: rgba(0, 0, 0, .85); overflow: auto; }
   .hidden { display: none !important; }
-  #panel { width: min(28em, 90%); text-align: center; }
+  #panel { width: min(30em, 90%); text-align: center; }
+  #panel p { margin: .3em 0 .8em; }
   #bar { height: .6em; margin: 1em 0; border: 1px solid #555; }
   #fill { height: 100%; width: 0; background: #d9a441; }
   #status { min-height: 1.5em; white-space: pre-wrap; }
@@ -33,8 +32,16 @@
   #hint { position: absolute; top: .6em; left: 50%; transform: translateX(-50%);
           padding: .3em .8em; background: rgba(0, 0, 0, .75); border-radius: 4px;
           pointer-events: none; }
-  #tools { display: flex; gap: .6em; justify-content: flex-end; margin: .5em 0; }
-  #tools button { padding: .3em .9em; background: #333; color: #ddd; }
+  #tools { position: fixed; top: .5em; right: .5em; z-index: 4; display: flex; gap: .4em;
+           opacity: .55; }
+  #tools:hover, #tools:focus-within { opacity: 1; }
+  #tools button { padding: .25em .8em; background: #333; color: #ddd; font-size: 13px; }
+  body.locked #tools { display: none; }
+  /* About, controls and credits: a panel over the game */
+  #about { position: fixed; inset: 0; z-index: 5; overflow: auto; background: rgba(17, 17, 17, .96);
+           -webkit-overflow-scrolling: touch; }
+  #about > div { max-width: 980px; margin: 0 auto; padding: 1em 1em 2em; }
+  #aboutclose { float: right; padding: .3em .9em; background: #333; color: #ddd; }
   table { border-collapse: collapse; }
   td { padding: .1em 1em .1em 0; vertical-align: top; }
   td:first-child { color: #eee; white-space: nowrap; }
@@ -48,9 +55,6 @@
      stick, look drags and menu taps on the rest of the screen. */
   body.touchplay { overflow: hidden; }
   body.touchplay main > :not(#stage) { display: none; }
-  body.touchplay #stage { position: fixed; inset: 0; width: auto; aspect-ratio: auto;
-                          border: 0; z-index: 1; }
-  body.touchplay #canvas { object-fit: contain; }
   body.touchplay, body.touchplay #canvas, #touch {
     touch-action: none; -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
@@ -103,11 +107,6 @@
 </head>
 <body>
 <main>
-  <h1>raylib Quake</h1>
-  <p>id Software's 1996 <b>Quake</b> engine (the WinQuake software renderer,
-    released under the GPL) running on <a href="https://www.raylib.com/">raylib</a>
-    and WebAssembly, with the free shareware episode <i>Dimension of the Doomed</i>.</p>
-
   <div id="stage">
     <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
     <div id="hint" class="hidden">Click to capture the mouse</div>
@@ -138,6 +137,10 @@
     <div id="rotate" class="hidden">Turn your device sideways to play</div>
     <div id="overlay">
       <div id="panel">
+        <h1>raylib Quake</h1>
+        <p>id Software's 1996 <b>Quake</b> engine (the WinQuake software renderer,
+          released under the GPL) running on <a href="https://www.raylib.com/">raylib</a>
+          and WebAssembly, with the free shareware episode <i>Dimension of the Doomed</i>.</p>
         <div id="bar"><div id="fill"></div></div>
         <div id="status">Loading…</div>
         <button id="play" disabled>Click to play</button>
@@ -145,12 +148,21 @@
         <div class="fine touchhelp hidden">Touch: left thumb moves, drag on the
           right to look, FIRE / JUMP / WPN on the right, MENU at the top. In
           menus tap the picture for Enter and swipe to move.</div>
+        <div class="fine"><a href="#about" id="aboutlink">About, controls and credits</a></div>
       </div>
     </div>
   </div>
   <div id="tools">
+    <button id="aboutbtn" title="About, controls and credits">About</button>
     <button id="full">Fullscreen</button>
   </div>
+
+  <section id="about" class="hidden"><div>
+  <button id="aboutclose">Close</button>
+  <h1>raylib Quake</h1>
+  <p>id Software's 1996 <b>Quake</b> engine (the WinQuake software renderer,
+    released under the GPL) running on <a href="https://www.raylib.com/">raylib</a>
+    and WebAssembly, with the free shareware episode <i>Dimension of the Doomed</i>.</p>
 
   <h2>Controls</h2>
   <table>
@@ -176,7 +188,12 @@
     (IndexedDB). There is no multiplayer in the browser build: a page cannot
     open UDP sockets. Starting a new game from the menu while one is running
     does not ask for confirmation here. After quitting, reload the page to
-    play again. Extra command-line options: <code>?args=-skill%202%20%2Bmap%20e1m2</code>.</p>
+    play again. Extra command-line options: <code>?args=-skill%202%20%2Bmap%20e1m2</code>.
+    The game draws at the window's size in device pixels, up to about
+    1920&times;1080 worth of pixels (<code>vid_maxpixels</code>; for example
+    <code>?args=%2Bvid_maxpixels%20921600</code> for 1280&times;720 worth on a slow
+    device). <code>?args=-width%20640%20-height%20480</code> keeps the classic
+    640&times;480, scaled to the window.</p>
 
   <h2>Credits and licenses</h2>
   <p>Quake engine © 1996–1997 id Software, Inc., released under the
@@ -195,6 +212,7 @@
   <p class="fine">Quake® is a trademark of id Software LLC, a ZeniMax Media
     company. This site and the raylib Quake project are not affiliated with,
     endorsed by or sponsored by id Software, ZeniMax Media or Bethesda Softworks.</p>
+  </div></section>
 </main>
 
 <script>
@@ -272,13 +290,10 @@
       });
   }
 
-  // ?args=... adds command-line options. They go first, because Quake
-  // takes the first copy of an option: the canvas defaults come after.
+  // ?args=... adds command-line options. Without -width/-height the game
+  // draws at the canvas's size.
   function gameArgs() {
-    var args = (query.get('args') || '').split(/\s+/).filter(Boolean);
-    // A 640x480 frame drawn 2x into the canvas stays sharp when the page
-    // scales the canvas.
-    return args.concat(['-winwidth', '1280', '-winheight', '960']);
+    return (query.get('args') || '').split(/\s+/).filter(Boolean);
   }
 
   function start() {
@@ -367,8 +382,11 @@
       releaseFingers();
   }
 
+  // The game plays in portrait too; ?rotate=1 still asks to turn the device.
+  var askRotate = query.get('rotate') === '1';
   function updateRotate() {
-    rotate.classList.toggle('hidden', !(running && touchOn && innerHeight > innerWidth));
+    rotate.classList.toggle('hidden', !(askRotate && running && touchOn
+                                        && innerHeight > innerWidth));
   }
   window.addEventListener('resize', updateRotate);
 
@@ -683,6 +701,21 @@
   }
   document.getElementById('full').onclick = toggleFullscreen;
 
+  var about = document.getElementById('about');
+  function showAbout(show) {
+    about.classList.toggle('hidden', !show);
+    if (show && document.pointerLockElement)
+      document.exitPointerLock();
+    if (!show)
+      canvas.focus();
+  }
+  document.getElementById('aboutbtn').onclick = function () { showAbout(true); };
+  document.getElementById('aboutlink').onclick = function (e) {
+    e.preventDefault();
+    showAbout(true);
+  };
+  document.getElementById('aboutclose').onclick = function () { showAbout(false); };
+
   // Pointer lock needs a click; the game says when it wants the mouse
   // (playing, not in the menu, console or a demo). The browser may still
   // refuse (Chromium answers WrongDocumentError when its window does not
@@ -712,6 +745,7 @@
       pointerRefused('pointerlockerror');
   });
   document.addEventListener('pointerlockchange', function () {
+    document.body.classList.toggle('locked', document.pointerLockElement === canvas);
     if (document.pointerLockElement === canvas)
       hint.textContent = 'Click to capture the mouse';
   });
