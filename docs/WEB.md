@@ -124,8 +124,11 @@ Serve it over HTTP(S); `file://` URLs cannot load the `.data`/`.wasm`.
   less than 3/4 of the pixels the budget allows, the largest frame of the
   canvas's shape that fits, nearest-sampled (an iPhone 14 at 390×844 @3x:
   canvas 1170×2532, frame 976×2118). `?args=-width%20640%20-height%20480`
-  keeps a fixed frame, scaled to fit. FOV is Quake's horizontal 90°, so a
-  portrait screen sees a tall, narrow view; the HUD is not scaled.
+  keeps a fixed frame, scaled to fit. With `fov_adapt` (screen.c) a wide
+  screen sees more at the sides and a portrait one keeps the 4:3 vertical
+  view and sees less at the sides: keeping `fov 90` across a portrait
+  screen would mean a ~130° vertical fov, which the software renderer
+  draws as garbage under the player. The HUD is not scaled.
   Fullscreen is the page's: the Fullscreen button or `Alt+Enter`.
 - **Network:** no sockets in a page; the build links id's `net_none.c`
   (loopback only), so single player and demos work and multiplayer does not.
