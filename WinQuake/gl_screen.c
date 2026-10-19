@@ -70,6 +70,9 @@ console is:
 */
 
 
+// GL uses unscaled 2D coordinates in the shared HUD code.
+int scr_2dscale = 1;
+
 int			glx, gly, glwidth, glheight;
 
 // only the refresh window will be updated unless these variables are flagged 

@@ -34,11 +34,17 @@ void SCR_EndLoadingPlaque (void);
 
 int SCR_ModalMessage (char *text);
 
-extern	float		scr_con_current;
+// 2D drawing (status bar, console, menus, centerprint) works in a virtual
+// screen of vid.conwidth x vid.conheight pixels, each drawn as a
+// scr_2dscale x scr_2dscale block in vid.buffer
+extern	int			scr_2dscale;
+void SCR_Update2DScale (void);
+
+extern	float		scr_con_current;	// in 2D (vid.conheight) lines
 extern	float		scr_conlines;		// lines of console to display
 
 extern	int			scr_fullupdate;	// set to 0 to force full redraw
-extern	int			sb_lines;
+extern	int			sb_lines;		// in 2D lines; sb_lines * scr_2dscale on screen
 
 extern	int			clearnotify;	// set to 0 whenever notify text is drawn
 extern	qboolean	scr_disabled_for_loading;
