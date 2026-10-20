@@ -63,8 +63,16 @@ set(QUAKE_CORE_SOURCES
 )
 
 # Platform drivers
+if(WIN32)
+  set(QUAKE_SYS_DRIVER sys_raylib.c)
+  set(QUAKE_PLATFORM_LIBS ws2_32 winmm)
+else()
+  set(QUAKE_SYS_DRIVER sys_linux.c)
+  set(QUAKE_PLATFORM_LIBS m)
+endif()
+
 set(QUAKE_NULL_DRIVER_SOURCES
-  sys_linux.c
+  ${QUAKE_SYS_DRIVER}
   net_udp.c net_bsd.c
   vid_null.c snd_null.c in_null.c cd_null.c
 )
@@ -112,7 +120,10 @@ function(quake_compile_settings target)
   # Never use the x86 assembly, even on 32-bit x86.
   target_compile_definitions(${target} PRIVATE id386=0)
 
-  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /experimental:c11atomics /wd4244 /wd4267 /wd4305 /wd4996)
+    target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+  elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     # The code relies on signed overflow wrapping and on type punning, and
     # assumes signed plain char (arm has unsigned char). -fno-common makes
     # Quake's tentative globals definitions explicit on old compilers (it is
@@ -167,7 +178,7 @@ if(QUAKE_RAYLIB)
 
   add_executable(quake $<TARGET_OBJECTS:quake_core> ${QUAKE_RAYLIB_DRIVER_SOURCES})
   quake_compile_settings(quake)
-  target_link_libraries(quake PRIVATE raylib m)
+  target_link_libraries(quake PRIVATE raylib ${QUAKE_PLATFORM_LIBS})
 
   if(EMSCRIPTEN)
     include(web/web.cmake)
@@ -191,7 +202,7 @@ if(QUAKE_RAYLIB)
         -Wno-unused-variable -Wno-unused-but-set-variable
         -Wno-unknown-pragmas)
     endif()
-    target_link_libraries(quake-gl PRIVATE raylib m)
+    target_link_libraries(quake-gl PRIVATE raylib ${QUAKE_PLATFORM_LIBS})
   endif()
 
   set(QUAKE_NULL_TARGET quake-null)
@@ -201,4 +212,4 @@ endif()
 
 add_executable(${QUAKE_NULL_TARGET} $<TARGET_OBJECTS:quake_core> ${QUAKE_NULL_DRIVER_SOURCES})
 quake_compile_settings(${QUAKE_NULL_TARGET})
-target_link_libraries(${QUAKE_NULL_TARGET} PRIVATE m)
+target_link_libraries(${QUAKE_NULL_TARGET} PRIVATE ${QUAKE_PLATFORM_LIBS})

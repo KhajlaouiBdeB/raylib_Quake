@@ -25,7 +25,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdint.h>
 #include <stdatomic.h>
 #include <time.h>
+
+#ifdef _WIN32
+#define NOGDI
+#define NOUSER
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+typedef SRWLOCK sys_mutex_t;
+#define SYS_MUTEX_INITIALIZER SRWLOCK_INIT
+#define sys_mutex_lock(m) AcquireSRWLockExclusive(m)
+#define sys_mutex_unlock(m) ReleaseSRWLockExclusive(m)
+#define sys_mutex_trylock(m) (TryAcquireSRWLockExclusive(m) ? 0 : -1)
+#else
 #include <pthread.h>
+typedef pthread_mutex_t sys_mutex_t;
+#define SYS_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#define sys_mutex_lock(m) pthread_mutex_lock(m)
+#define sys_mutex_unlock(m) pthread_mutex_unlock(m)
+#define sys_mutex_trylock(m) pthread_mutex_trylock(m)
+#endif
 
 #include "raylib.h"
 
@@ -86,7 +104,12 @@ static AudioStream		audio_stream;
 // Pacing and synchronization
 static atomic_uint_fast64_t	consumed_frames;
 static atomic_uint_fast64_t	painted_frames_count;
+#ifdef _WIN32
+static LARGE_INTEGER		start_time;
+static LARGE_INTEGER		timer_freq;
+#else
 static struct timespec		start_time;
+#endif
 
 // Underrun and diagnostic counters
 // Written by the audio thread, read by the main thread (snd_stats, shutdown),
@@ -96,7 +119,7 @@ static atomic_uint_fast64_t	underrun_frames;
 static int				in_underrun = 0;		// audio thread only
 
 // Debug WAV capture
-static pthread_mutex_t	capture_mutex = PTHREAD_MUTEX_INITIALIZER;
+static sys_mutex_t		capture_mutex = SYS_MUTEX_INITIALIZER;
 static FILE				*capture_fp = NULL;
 static uint32_t			capture_data_bytes = 0;
 static int				capture_from_cmdline = 0;
@@ -134,7 +157,7 @@ static void WriteWavHeader(FILE *fp, int rate, int channels, int bits, uint32_t 
 
 static void StartCapture(const char *filename, int rate)
 {
-	pthread_mutex_lock(&capture_mutex);
+	sys_mutex_lock(&capture_mutex);
 	if (capture_fp)
 	{
 		WriteWavHeader(capture_fp, capture_rate, 2, 16, capture_data_bytes);
@@ -144,14 +167,14 @@ static void StartCapture(const char *filename, int rate)
 
 	if (!filename || !filename[0])
 	{
-		pthread_mutex_unlock(&capture_mutex);
+		sys_mutex_unlock(&capture_mutex);
 		return;
 	}
 
 	capture_fp = fopen(filename, "wb");
 	if (!capture_fp)
 	{
-		pthread_mutex_unlock(&capture_mutex);
+		sys_mutex_unlock(&capture_mutex);
 		Con_Printf("snd_capture: could not open '%s' for writing\n", filename);
 		return;
 	}
@@ -159,16 +182,16 @@ static void StartCapture(const char *filename, int rate)
 	capture_rate = rate > 0 ? rate : ((shm && shm->speed) ? shm->speed : 11025);
 	capture_data_bytes = 0;
 	WriteWavHeader(capture_fp, capture_rate, 2, 16, 0);
-	pthread_mutex_unlock(&capture_mutex);
+	sys_mutex_unlock(&capture_mutex);
 	Con_Printf("snd_capture: recording audio to '%s' (%d Hz 16-bit stereo)\n", filename, capture_rate);
 }
 
 static void StopCapture(void)
 {
-	pthread_mutex_lock(&capture_mutex);
+	sys_mutex_lock(&capture_mutex);
 	if (!capture_fp)
 	{
-		pthread_mutex_unlock(&capture_mutex);
+		sys_mutex_unlock(&capture_mutex);
 		return;
 	}
 
@@ -177,7 +200,7 @@ static void StopCapture(void)
 	capture_fp = NULL;
 	uint32_t saved_bytes = capture_data_bytes;
 	capture_data_bytes = 0;
-	pthread_mutex_unlock(&capture_mutex);
+	sys_mutex_unlock(&capture_mutex);
 
 	Con_Printf("snd_capture: capture closed (%u bytes, %.2f s)\n",
 		saved_bytes,
@@ -235,10 +258,16 @@ static void Snd_Stats_f(void)
 
 static double GetWallTime(void)
 {
+#ifdef _WIN32
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+	return (double)(now.QuadPart - start_time.QuadPart) / (double)timer_freq.QuadPart;
+#else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (double)(ts.tv_sec - start_time.tv_sec) +
 	       (double)(ts.tv_nsec - start_time.tv_nsec) * 1e-9;
+#endif
 }
 
 //
@@ -299,7 +328,7 @@ static void RaylibAudioCallback(void *buffer, unsigned int frames)
 	atomic_store_explicit(&consumed_frames, read_start + frames, memory_order_release);
 
 	// Write to capture file if active (non-blocking trylock so realtime callback is never stalled)
-	if (pthread_mutex_trylock(&capture_mutex) == 0)
+	if (sys_mutex_trylock(&capture_mutex) == 0)
 	{
 		if (capture_fp)
 		{
@@ -307,7 +336,7 @@ static void RaylibAudioCallback(void *buffer, unsigned int frames)
 			fwrite(out, 1, bytes, capture_fp);
 			capture_data_bytes += (uint32_t)bytes;
 		}
-		pthread_mutex_unlock(&capture_mutex);
+		sys_mutex_unlock(&capture_mutex);
 	}
 }
 
@@ -326,7 +355,12 @@ int SNDDMA_Init(void)
 	atomic_store_explicit(&underrun_count, 0, memory_order_relaxed);
 	atomic_store_explicit(&underrun_frames, 0, memory_order_relaxed);
 	in_underrun = 0;
+#ifdef _WIN32
+	QueryPerformanceFrequency(&timer_freq);
+	QueryPerformanceCounter(&start_time);
+#else
 	clock_gettime(CLOCK_MONOTONIC, &start_time);
+#endif
 
 	// Check command-line or environment speed override
 	p = COM_CheckParm("-sndspeed");

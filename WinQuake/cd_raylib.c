@@ -22,7 +22,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#define access _access
+#define R_OK 4
+#define strcasecmp _stricmp
+#else
 #include <unistd.h>
+#endif
 
 #include "raylib.h"
 

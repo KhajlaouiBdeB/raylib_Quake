@@ -77,7 +77,7 @@ void GL_Bind (int texnum)
 	if (currenttexture == texnum)
 		return;
 	currenttexture = texnum;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(GLQUAKE_RAYLIB)
 	bindTexFunc (GL_TEXTURE_2D, texnum);
 #else
 	glBindTexture(GL_TEXTURE_2D, texnum);

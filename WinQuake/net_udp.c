@@ -19,8 +19,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // net_udp.c
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include "quakedef.h"
 
+#ifdef _WIN32
+typedef int socklen_t;
+typedef unsigned long in_addr_t;
+#define ioctl ioctlsocket
+#define close closesocket
+#ifndef EWOULDBLOCK
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+#ifndef ECONNREFUSED
+#define ECONNREFUSED WSAECONNREFUSED
+#endif
+#define qerrno WSAGetLastError()
+#define MAXHOSTNAMELEN 256
+#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -30,6 +50,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/param.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#define qerrno errno
+#endif
 
 #ifdef __sun__
 #include <sys/filio.h>
@@ -58,9 +80,17 @@ int UDP_Init (void)
 	char	buff[MAXHOSTNAMELEN];
 	struct qsockaddr addr;
 	char *colon;
+#ifdef _WIN32
+	WSADATA	winsockdata;
+#endif
 	
 	if (COM_CheckParm ("-noudp"))
 		return -1;
+
+#ifdef _WIN32
+	if (WSAStartup (MAKEWORD (2, 2), &winsockdata))
+		return -1;
+#endif
 
 	// determine my name & address
 	gethostname(buff, MAXHOSTNAMELEN);
@@ -106,6 +136,9 @@ void UDP_Shutdown (void)
 {
 	UDP_Listen (false);
 	UDP_CloseSocket (net_controlsocket);
+#ifdef _WIN32
+	WSACleanup ();
+#endif
 }
 
 //=============================================================================
@@ -135,12 +168,12 @@ int UDP_OpenSocket (int port)
 {
 	int newsocket;
 	struct sockaddr_in address;
-	qboolean _true = true;
+	unsigned long _true = 1;
 
 	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
 		return -1;
 
-	if (ioctl (newsocket, FIONBIO, (char *)&_true) == -1)
+	if (ioctl (newsocket, FIONBIO, (void *)&_true) == -1)
 		goto ErrorReturn;
 
 	address.sin_family = AF_INET;
@@ -234,12 +267,12 @@ int UDP_Connect (int socket, struct qsockaddr *addr)
 
 int UDP_CheckNewConnections (void)
 {
-	int		available;
+	unsigned long	available;
 
 	if (net_acceptsocket == -1)
 		return -1;
 
-	if (ioctl (net_acceptsocket, FIONREAD, &available) == -1)
+	if (ioctl (net_acceptsocket, FIONREAD, (void *)&available) == -1)
 		Sys_Error ("UDP: ioctlsocket (FIONREAD) failed\n");
 	if (available)
 		return net_acceptsocket;
@@ -254,7 +287,7 @@ int UDP_Read (int socket, byte *buf, int len, struct qsockaddr *addr)
 	int ret;
 
 	ret = recvfrom (socket, buf, len, 0, (struct sockaddr *)addr, &addrlen);
-	if (ret == -1 && (errno == EWOULDBLOCK || errno == ECONNREFUSED))
+	if (ret == -1 && (qerrno == EWOULDBLOCK || qerrno == ECONNREFUSED))
 		return 0;
 	return ret;
 }
@@ -301,7 +334,7 @@ int UDP_Write (int socket, byte *buf, int len, struct qsockaddr *addr)
 	int ret;
 
 	ret = sendto (socket, buf, len, 0, (struct sockaddr *)addr, sizeof(struct qsockaddr));
-	if (ret == -1 && errno == EWOULDBLOCK)
+	if (ret == -1 && qerrno == EWOULDBLOCK)
 		return 0;
 	return ret;
 }

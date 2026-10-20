@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #define WM_MOUSEWHEEL                   0x020A
 
+#if 0
 #ifndef SERVERONLY
 #include <ddraw.h>
 #include <dsound.h>
@@ -52,6 +53,7 @@ extern DWORD gSndBufSize;
 void	VID_LockBuffer (void);
 void	VID_UnlockBuffer (void);
 
+#endif
 #endif
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;

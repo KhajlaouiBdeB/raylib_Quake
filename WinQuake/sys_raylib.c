@@ -31,11 +31,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+#include <io.h>
+#include <conio.h>
+#else
+#include <unistd.h>
 #include <sys/select.h>
 #include <dirent.h>
+#endif
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <limits.h>
@@ -75,7 +84,7 @@ static int findhandle (void)
 	return -1;
 }
 
-static int filelength (FILE *f)
+static int sys_filelength (FILE *f)
 {
 	long	pos;
 	long	end;
@@ -88,6 +97,7 @@ static int filelength (FILE *f)
 	return (int)end;
 }
 
+#ifndef _WIN32
 // Finds path ignoring the case of each component, for case-sensitive
 // volumes (a case-sensitive APFS volume, an external disk) holding data
 // named PAK0.PAK or ID1. Returns 1 and fills out if something matched.
@@ -151,6 +161,13 @@ static int FindCaseInsensitive (const char *path, char *out, int outsize)
 	strcpy (out, cur);
 	return 1;
 }
+#else
+static int FindCaseInsensitive (const char *path, char *out, int outsize)
+{
+	(void)path; (void)out; (void)outsize;
+	return 0;
+}
+#endif
 
 static FILE *OpenReadFile (const char *path)
 {
@@ -179,7 +196,7 @@ int Sys_FileOpenRead (char *path, int *hndl)
 	sys_handles[i] = f;
 	*hndl = i;
 
-	return filelength (f);
+	return sys_filelength (f);
 }
 
 int Sys_FileOpenWrite (char *path)
@@ -237,7 +254,11 @@ int Sys_FileTime (char *path)
 
 void Sys_mkdir (char *path)
 {
+#ifdef _WIN32
+	_mkdir (path);
+#else
 	mkdir (path, 0777);		// POSIX
+#endif
 }
 
 /*
@@ -333,6 +354,19 @@ void Sys_Quit (void)
 
 double Sys_FloatTime (void)
 {
+#ifdef _WIN32
+	static LARGE_INTEGER	freq;
+	static LARGE_INTEGER	start;
+	LARGE_INTEGER			now;
+
+	if (!freq.QuadPart)
+	{
+		QueryPerformanceFrequency (&freq);
+		QueryPerformanceCounter (&start);
+	}
+	QueryPerformanceCounter (&now);
+	return (double)(now.QuadPart - start.QuadPart) / (double)freq.QuadPart;
+#else
 	struct timespec	ts;
 	static time_t	secbase;
 
@@ -342,11 +376,49 @@ double Sys_FloatTime (void)
 		secbase = ts.tv_sec;
 
 	return (ts.tv_sec - secbase) + ts.tv_nsec / 1000000000.0;
+#endif
 }
 
 // Commands typed into the terminal of a dedicated server.
 char *Sys_ConsoleInput (void)
 {
+#ifdef _WIN32
+	static char	text[256];
+	static int	len;
+	int			c;
+
+	if (cls.state != ca_dedicated)
+		return NULL;
+
+	if (!_kbhit ())
+		return NULL;
+
+	while (_kbhit ())
+	{
+		c = _getche ();
+		if (c == '\r' || c == '\n')
+		{
+			text[len] = 0;
+			len = 0;
+			putchar ('\n');
+			return text;
+		}
+		if (c == '\b')
+		{
+			if (len > 0)
+			{
+				len--;
+				putchar (' ');
+				putchar ('\b');
+			}
+		}
+		else if (len < (int)sizeof(text) - 1)
+		{
+			text[len++] = (char)c;
+		}
+	}
+	return NULL;
+#else
 	static char	text[256];
 	int			len;
 	fd_set		fdset;
@@ -369,13 +441,18 @@ char *Sys_ConsoleInput (void)
 	text[len-1] = 0;	// rip off the \n and terminate
 
 	return text;
+#endif
 }
 
 void Sys_Sleep (void)
 {
+#ifdef _WIN32
+	Sleep (1);
+#else
 	struct timespec	ts = { 0, 1000000 };	// 1 ms
 
 	nanosleep (&ts, NULL);
+#endif
 }
 
 void Sys_Init (void)
@@ -492,7 +569,9 @@ int main (int argc, char **argv)
 	int				j;
 
 	signal (SIGFPE, SIG_IGN);
+#ifdef SIGPIPE
 	signal (SIGPIPE, SIG_IGN);	// a closed pipe on stdout or a socket
+#endif
 
 	memset (&parms, 0, sizeof(parms));
 
@@ -521,8 +600,10 @@ int main (int argc, char **argv)
 	isDedicated = COM_CheckParm ("-dedicated") != 0;
 	nostdout = COM_CheckParm ("-nostdout") != 0;
 
+#ifndef _WIN32
 	if (isDedicated)
 		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) | O_NONBLOCK);	// POSIX
+#endif
 
 	printf ("raylib Quake -- Version %0.3f\n", VERSION);
 

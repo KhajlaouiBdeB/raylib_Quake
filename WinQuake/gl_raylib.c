@@ -41,11 +41,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a depth-only glClear, glGetString or buffer orphaning; those four entry
 // points (all in GLES 3) come from rlGetProcAddress.
 
+#define _USE_MATH_DEFINES
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #include "rlgl.h"
 #include "gl_raylib.h"
