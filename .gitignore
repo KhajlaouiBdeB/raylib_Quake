@@ -25,3 +25,5 @@ config.cfg
 
 # Browser touch test output (scripts/web_touch.mjs)
 /web-touch/
+.idea
+.output.txt
